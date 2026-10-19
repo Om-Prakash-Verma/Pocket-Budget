@@ -143,7 +143,7 @@
 ## 📦 Building & Sharing the APK
 
 The default APK filename has been configured to build as:
-### 🎁 **`GhostPocket-v1.0.0.apk`**
+### 🎁 **`GhostPocket-v1.1.0.apk`**
 
 ### Build with PowerShell:
 ```powershell
@@ -151,21 +151,21 @@ $env:JAVA_HOME = "C:\path\to\jdk-21"
 .\gradlew.bat assembleDebug
 ```
 The output file will be generated at:
-`app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk`
+`app/build/outputs/apk/debug/GhostPocket-v1.1.0.apk`
 
 ### Quick Commands:
 - **Locate and open in Windows Explorer**:
   ```powershell
-  explorer /select,"app\build\outputs\apk\debug\GhostPocket-v1.0.0.apk"
+  explorer /select,"app\build\outputs\apk\debug\GhostPocket-v1.1.0.apk"
   ```
 - **Install directly to a connected phone**:
   ```powershell
-  adb install -r app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk
+  adb install -r app/build/outputs/apk/debug/GhostPocket-v1.1.0.apk
   ```
 - **Publish to GitHub Releases**:
   ```bash
   git push origin main
-  gh release create v1.0.0 app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk --title "GhostPocket v1.0.0 👻" --notes "Bento Grid + Claymorphism expense tracker"
+  gh release create v1.1.0 app/build/outputs/apk/debug/GhostPocket-v1.1.0.apk --title "GhostPocket v1.1.0 👻" --notes "Direct personal email authentication & unified Bento headers"
   ```
 
 ---

@@ -29,8 +29,6 @@ fun AuthScreen(
     errorMessage: String?,
     onSignIn: (email: String, pass: String) -> Unit,
     onSignUp: (email: String, pass: String) -> Unit,
-    onGoogleSignIn: () -> Unit,
-    onAnonymousSignIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isSignUpMode by remember { mutableStateOf(false) }
@@ -72,7 +70,7 @@ fun AuthScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (isSignUpMode) "Create an account to protect your student gold" else "Welcome back, master of coins",
+                text = if (isSignUpMode) "Create an account with your personal email" else "Welcome back, master of coins",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -120,8 +118,8 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = emailInput,
                     onValueChange = { emailInput = it },
-                    label = { Text("College Email / Spell-handle") },
-                    placeholder = { Text("student@campus.edu") },
+                    label = { Text("Personal Email") },
+                    placeholder = { Text("your.email@example.com") },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     },
@@ -181,7 +179,6 @@ fun AuthScreen(
                     }
                 }
 
-
                 Spacer(modifier = Modifier.height(20.dp))
 
                 val canSubmit = emailInput.isNotBlank() && passwordInput.length >= 6
@@ -195,26 +192,6 @@ fun AuthScreen(
                             onSignIn(emailInput.trim(), passwordInput.trim())
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Sign in with Google
-                ClayButton(
-                    text = "Sign in with Google G",
-                    isSecondary = true,
-                    onClick = onGoogleSignIn,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Offline / Guest Anonymous Login
-                ClayButton(
-                    text = "Ghost Walk (Continue as Guest) 👻",
-                    isSecondary = true,
-                    onClick = onAnonymousSignIn,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

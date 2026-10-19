@@ -86,40 +86,12 @@ fun MainContent(viewModel: GhostPocketViewModel) {
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Google Sign-In Launcher
-    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                account.idToken?.let { idToken ->
-                    viewModel.signInWithGoogle(idToken)
-                }
-            } catch (e: Exception) {
-                // Handled in viewModel
-            }
-        }
-    }
-
     if (!uiState.isAuthenticated) {
         AuthScreen(
             isLoading = uiState.authLoading,
             errorMessage = uiState.authError,
             onSignIn = { email, pass -> viewModel.signIn(email, pass) },
-            onSignUp = { email, pass -> viewModel.signUp(email, pass) },
-            onGoogleSignIn = {
-                val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(
-                    com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN
-                )
-                    .requestIdToken(context.getString(R.string.default_web_client_id))
-                    .requestEmail()
-                    .build()
-                val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
-                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-            },
-            onAnonymousSignIn = { viewModel.continueAsGuest() }
+            onSignUp = { email, pass -> viewModel.signUp(email, pass) }
         )
         return
     }
