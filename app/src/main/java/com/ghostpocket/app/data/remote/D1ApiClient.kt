@@ -35,14 +35,13 @@ class D1ApiClient(
         private const val KEY_USER_EMAIL = "d1_user_email"
         private const val KEY_LAST_SYNC_TS = "d1_last_sync_timestamp"
 
-        // Default: 10.0.2.2 for Android Emulator (connecting to host PC at port 8787).
-        // Can be changed to production worker URL (e.g. https://ghostpocket-backend.<subdomain>.workers.dev) anytime!
-        const val DEFAULT_EMULATOR_URL = "http://10.0.2.2:8787"
+        const val DEFAULT_PRODUCTION_URL = "https://ghostpocket-backend.omprakashverma-in-fda.workers.dev"
     }
 
     var baseUrl: String
-        get() = prefs.getString(KEY_BASE_URL, DEFAULT_EMULATOR_URL) ?: DEFAULT_EMULATOR_URL
+        get() = prefs.getString(KEY_BASE_URL, DEFAULT_PRODUCTION_URL) ?: DEFAULT_PRODUCTION_URL
         set(value) = prefs.edit().putString(KEY_BASE_URL, value.trimEnd('/')).apply()
+
 
     var authToken: String?
         get() = prefs.getString(KEY_AUTH_TOKEN, null)
