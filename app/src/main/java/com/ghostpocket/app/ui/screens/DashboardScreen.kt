@@ -18,19 +18,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ghostpocket.app.model.CategorySpend
 import com.ghostpocket.app.model.MonthlySummary
 import com.ghostpocket.app.model.MoneyUtils
-import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.*
 
 @Composable
 fun DashboardScreen(
     summary: MonthlySummary,
-    recentTransactions: List<TransactionEntity>,
+    categorySpends: List<CategorySpend>,
     onAddClick: () -> Unit,
     onSetBudgetClick: () -> Unit,
-    onTransactionClick: (TransactionEntity) -> Unit,
+    onManageCategoriesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Dynamic mood based on budget health!
@@ -270,43 +270,61 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Recent Transmutation Title
+            // Category Budget Breakdown Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Recent Spells 📜",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = "Category Realms 🏷️",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Allocated, spent & remaining gold",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { onManageCategoriesClick() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Manage ⚙️",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
             }
 
-            // Transactions list or spooky empty state
-            if (recentTransactions.isEmpty()) {
+            // Category Budget Cards or empty state
+            if (categorySpends.isEmpty()) {
                 item {
                     ClayCard(
                         modifier = Modifier.fillMaxWidth(),
                         shapeRadius = 22.dp
                     ) {
                         EmptyStateView(
-                            message = "The graveyard is quiet... No expenses yet! 🪦",
+                            message = "No categories or spells logged yet! Tap '+ Add' or create a category in settings 🏷️",
                             mood = GhostMood.THINKING
                         )
                     }
                 }
             } else {
-                items(recentTransactions.take(5)) { tx ->
-                    BentoTransactionItem(
-                        transaction = tx,
-                        onClick = { onTransactionClick(tx) }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+                items(categorySpends) { spend ->
+                    BentoCategoryBudgetCard(spend = spend)
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         }
@@ -327,8 +345,132 @@ fun DashboardScreen(
 }
 
 @Composable
+fun BentoCategoryBudgetCard(
+    spend: CategorySpend,
+    modifier: Modifier = Modifier
+) {
+    val allocated = spend.allocatedBudgetPaise
+    val spent = spend.totalPaise
+    val remaining = allocated - spent
+    val hasBudget = allocated > 0L
+    val isOverBudget = hasBudget && remaining < 0L
+
+    val fraction = if (hasBudget) {
+        (spent.toFloat() / allocated.toFloat()).coerceIn(0f, 1f)
+    } else {
+        spend.percentage.coerceIn(0f, 1f)
+    }
+
+    ClayCard(
+        modifier = modifier.fillMaxWidth(),
+        shapeRadius = 20.dp,
+        elevation = 3.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CategoryIcon(
+                            categoryName = spend.category,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Text(
+                            text = spend.category,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (hasBudget) {
+                                if (isOverBudget) "Over budget! 😱" else "On track 👍"
+                            } else {
+                                "No budget set"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Spent display
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = MoneyUtils.formatPaiseToInr(spent),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "Spent",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Progress bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = fraction.coerceIn(0.02f, 1f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Budget and Left details
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (hasBudget) "Budget: ${MoneyUtils.formatPaiseToInr(allocated)}" else "Uncapped",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = if (hasBudget) {
+                        if (remaining >= 0L) "Left: ${MoneyUtils.formatPaiseToInr(remaining)}" else "-${MoneyUtils.formatPaiseToInr(kotlin.math.abs(remaining))} ⚠️"
+                    } else {
+                        "${(spend.percentage * 100).toInt()}% of total expenses"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun BentoTransactionItem(
-    transaction: TransactionEntity,
+    transaction: com.ghostpocket.app.model.TransactionEntity,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {

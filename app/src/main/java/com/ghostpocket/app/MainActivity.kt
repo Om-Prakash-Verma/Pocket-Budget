@@ -256,10 +256,10 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                         Screen.HOME -> {
                             DashboardScreen(
                                 summary = uiState.summary,
-                                recentTransactions = uiState.recentTransactions,
+                                categorySpends = uiState.categorySpends,
                                 onAddClick = { isAddTransactionOpen = true },
                                 onSetBudgetClick = { showSetBudgetDialog = true },
-                                onTransactionClick = { /* Detail action */ }
+                                onManageCategoriesClick = { isSettingsOpen = true }
                             )
                         }
 
