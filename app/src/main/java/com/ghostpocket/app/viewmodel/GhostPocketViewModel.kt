@@ -79,32 +79,47 @@ class GhostPocketViewModel(
     )
 
     fun signIn(email: String, pass: String) {
+        if (email.isBlank() || pass.isBlank()) {
+            _authError.value = "Email and password cannot be empty."
+            return
+        }
         viewModelScope.launch {
             _authLoading.value = true
             _authError.value = null
             try {
-                // Try Cloudflare D1 Auth First
-                var d1Success = false
+                // 1. Try Cloudflare D1 Auth
+                var authSuccess = false
+                var failureReason: String? = null
+
                 if (d1ApiClient != null) {
-                    val res = d1ApiClient.login(email, pass)
-                    if (res.error == null && res.userId != null) {
-                        d1Success = true
+                    val res = d1ApiClient.login(email.trim(), pass)
+                    if (res.userId != null) {
+                        authSuccess = true
+                    } else if (res.error != null) {
+                        failureReason = res.error
                     }
                 }
 
-                // If not D1 or D1 offline, try Firebase Auth
-                if (!d1Success) {
+                // 2. If D1 failed due to network, try Firebase as fallback
+                if (!authSuccess && failureReason?.contains("Invalid email or password", ignoreCase = true) != true) {
                     try {
                         com.google.firebase.auth.FirebaseAuth.getInstance()
-                            .signInWithEmailAndPassword(email, pass)
+                            .signInWithEmailAndPassword(email.trim(), pass)
+                        authSuccess = true
                     } catch (e: Exception) {
-                        if (d1ApiClient == null) throw e
+                        if (failureReason == null) {
+                            failureReason = e.localizedMessage
+                        }
                     }
                 }
 
-                _isAuthenticated.value = true
-                _userMessage.value = "Welcome back! 👻"
-                triggerSync()
+                if (authSuccess) {
+                    _isAuthenticated.value = true
+                    _userMessage.value = "Welcome back! 👻"
+                    triggerSync()
+                } else {
+                    _authError.value = failureReason ?: "Crypt doors sealed! Invalid email or password."
+                }
             } catch (e: Exception) {
                 _authError.value = e.localizedMessage ?: "Crypt doors sealed! Check credentials."
             } finally {
@@ -114,32 +129,45 @@ class GhostPocketViewModel(
     }
 
     fun signUp(email: String, pass: String) {
+        if (email.isBlank() || pass.length < 6) {
+            _authError.value = "Password must be at least 6 characters."
+            return
+        }
         viewModelScope.launch {
             _authLoading.value = true
             _authError.value = null
             try {
-                // Try Cloudflare D1 Auth First
-                var d1Success = false
+                var authSuccess = false
+                var failureReason: String? = null
+
                 if (d1ApiClient != null) {
-                    val res = d1ApiClient.register(email, pass)
-                    if (res.error == null && res.userId != null) {
-                        d1Success = true
+                    val res = d1ApiClient.register(email.trim(), pass)
+                    if (res.userId != null) {
+                        authSuccess = true
+                    } else if (res.error != null) {
+                        failureReason = res.error
                     }
                 }
 
-                // If not D1, register on Firebase
-                if (!d1Success) {
+                if (!authSuccess && failureReason?.contains("already exists", ignoreCase = true) != true) {
                     try {
                         com.google.firebase.auth.FirebaseAuth.getInstance()
-                            .createUserWithEmailAndPassword(email, pass)
+                            .createUserWithEmailAndPassword(email.trim(), pass)
+                        authSuccess = true
                     } catch (e: Exception) {
-                        if (d1ApiClient == null) throw e
+                        if (failureReason == null) {
+                            failureReason = e.localizedMessage
+                        }
                     }
                 }
 
-                _isAuthenticated.value = true
-                _userMessage.value = "Account conjured! 🪄"
-                triggerSync()
+                if (authSuccess) {
+                    _isAuthenticated.value = true
+                    _userMessage.value = "Account conjured! 🪄"
+                    triggerSync()
+                } else {
+                    _authError.value = failureReason ?: "Spell failed! Could not create account."
+                }
             } catch (e: Exception) {
                 _authError.value = e.localizedMessage ?: "Spell failed! Could not create account."
             } finally {
@@ -147,6 +175,7 @@ class GhostPocketViewModel(
             }
         }
     }
+
 
     fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
