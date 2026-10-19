@@ -17,3 +17,4 @@ captures
 .idea/
 .kotlin/
 backend/node_modules/
+.env
