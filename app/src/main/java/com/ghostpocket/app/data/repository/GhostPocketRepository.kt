@@ -1,0 +1,569 @@
+package com.ghostpocket.app.data.repository
+
+import com.ghostpocket.app.data.local.BudgetDao
+import com.ghostpocket.app.data.local.CategoryDao
+import com.ghostpocket.app.data.local.FriendDao
+import com.ghostpocket.app.data.local.FriendLedgerDao
+import com.ghostpocket.app.data.local.TransactionDao
+import com.ghostpocket.app.model.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.tasks.await
+import java.util.Calendar
+import java.util.UUID
+
+interface GhostPocketRepository {
+    // Transactions
+    val allTransactions: Flow<List<TransactionEntity>>
+    suspend fun getTransactionById(id: String): TransactionEntity?
+    suspend fun addTransaction(transaction: TransactionEntity)
+    suspend fun updateTransaction(transaction: TransactionEntity)
+    suspend fun deleteTransaction(id: String)
+    val monthlySummary: Flow<MonthlySummary>
+    val categorySpendsCurrentMonth: Flow<List<CategorySpend>>
+
+    // Budget
+    val userBudget: Flow<UserBudgetEntity?>
+    suspend fun setUserBudget(amountPaise: Long)
+
+    // Friends & Ledgers
+    val allFriendsWithBalances: Flow<List<FriendBalance>>
+    val allFriends: Flow<List<FriendEntity>>
+    fun getLedgerEntriesForFriend(friendId: String): Flow<List<FriendLedgerEntity>>
+    suspend fun addFriend(name: String, phone: String? = null): FriendEntity
+    suspend fun updateFriend(friend: FriendEntity)
+    suspend fun deleteFriend(id: String)
+    suspend fun addLedgerEntry(
+        friendId: String,
+        amountPaise: Long,
+        direction: LedgerDirection,
+        note: String? = null
+    )
+    suspend fun recordRepayment(
+        friendId: String,
+        repaymentAmountPaise: Long,
+        isRepayingToUser: Boolean,
+        note: String? = "Repayment"
+    )
+    suspend fun settleFriendLedger(friendId: String)
+
+    // Bill Splitting
+    suspend fun splitBill(
+        title: String,
+        totalPaise: Long,
+        payerFriendId: String?,
+        participantFriendIds: List<String>,
+        category: String
+    )
+
+    // Categories
+    val allCategories: Flow<List<CategoryEntity>>
+    suspend fun addCategory(name: String, budgetPaise: Long = 0L)
+    suspend fun updateCategoryBudget(name: String, budgetPaise: Long)
+    suspend fun deleteCategory(category: CategoryEntity)
+
+    // Sync & Cloud Operations
+    suspend fun getPendingSyncItems(): PendingSyncPayload
+    suspend fun markTransactionSynced(id: String)
+    suspend fun markFriendSynced(id: String)
+    suspend fun markLedgerSynced(id: String)
+    suspend fun markCategorySynced(name: String)
+    suspend fun markBudgetSynced(id: String)
+    suspend fun pullFromCloud(userId: String)
+    suspend fun clearLocalCache()
+}
+
+data class PendingSyncPayload(
+    val transactions: List<TransactionEntity>,
+    val friends: List<FriendEntity>,
+    val ledgers: List<FriendLedgerEntity>,
+    val categories: List<CategoryEntity>,
+    val budgets: List<UserBudgetEntity>
+)
+
+class GhostPocketRepositoryImpl(
+    private val transactionDao: TransactionDao,
+    private val friendDao: FriendDao,
+    private val friendLedgerDao: FriendLedgerDao,
+    private val categoryDao: CategoryDao,
+    private val budgetDao: BudgetDao,
+    private val currentUserIdProvider: () -> String
+) : GhostPocketRepository {
+
+    override val allTransactions: Flow<List<TransactionEntity>> =
+        transactionDao.getAllTransactions()
+
+    override suspend fun getTransactionById(id: String): TransactionEntity? =
+        transactionDao.getTransactionById(id)
+
+    override suspend fun addTransaction(transaction: TransactionEntity) {
+        val withUser = transaction.copy(
+            userId = currentUserIdProvider(),
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            updatedAt = System.currentTimeMillis()
+        )
+        transactionDao.insertTransaction(withUser)
+    }
+
+    override suspend fun updateTransaction(transaction: TransactionEntity) {
+        val withUser = transaction.copy(
+            userId = currentUserIdProvider(),
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            updatedAt = System.currentTimeMillis()
+        )
+        transactionDao.updateTransaction(withUser)
+    }
+
+    override suspend fun deleteTransaction(id: String) {
+        val item = transactionDao.getTransactionById(id) ?: return
+        if (item.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            // Coalescing optimization: created locally but never uploaded yet! Can safely hard-delete immediately, eliminating redundant cloud writes
+            transactionDao.hardDelete(id)
+        } else {
+            transactionDao.markForDeletion(id)
+        }
+    }
+
+    override val userBudget: Flow<UserBudgetEntity?> =
+        budgetDao.getBudget()
+
+    override suspend fun setUserBudget(amountPaise: Long) {
+        budgetDao.setBudget(
+            UserBudgetEntity(
+                id = "current_budget",
+                budgetPaise = amountPaise,
+                syncStatus = SyncStatus.PENDING_UPLOAD,
+                userId = currentUserIdProvider(),
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    override suspend fun deleteFriend(id: String) {
+        val item = friendDao.getFriendById(id) ?: return
+        if (item.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            // Coalescing optimization: created locally, never synced to cloud. Hard-delete locally
+            friendDao.hardDelete(id)
+        } else {
+            friendDao.markForDeletion(id)
+        }
+    }
+
+    override suspend fun addCategory(name: String, budgetPaise: Long) {
+        val trimmed = name.trim()
+        if (trimmed.isNotBlank()) {
+            categoryDao.insertCategory(
+                CategoryEntity(
+                    name = trimmed,
+                    iconKey = "ghost",
+                    budgetPaise = budgetPaise,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    userId = currentUserIdProvider(),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    override suspend fun updateCategoryBudget(name: String, budgetPaise: Long) {
+        val trimmed = name.trim()
+        if (trimmed.isNotBlank()) {
+            categoryDao.insertCategory(
+                CategoryEntity(
+                    name = trimmed,
+                    iconKey = "ghost",
+                    budgetPaise = budgetPaise,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    userId = currentUserIdProvider(),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    override suspend fun deleteCategory(category: CategoryEntity) {
+        if (category.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            categoryDao.hardDelete(category.name)
+        } else {
+            categoryDao.markForDeletion(category.name)
+        }
+    }
+
+    override suspend fun getPendingSyncItems(): PendingSyncPayload {
+        val txs = transactionDao.getPendingSyncTransactions()
+        val friends = friendDao.getPendingSyncFriends()
+        val ledgers = friendLedgerDao.getPendingSyncLedgers()
+        val categories = categoryDao.getPendingSyncCategories()
+        val budgets = budgetDao.getPendingSyncBudgets()
+        return PendingSyncPayload(txs, friends, ledgers, categories, budgets)
+    }
+
+    override suspend fun markTransactionSynced(id: String) {
+        val item = transactionDao.getTransactionById(id)
+        if (item?.syncStatus == SyncStatus.PENDING_DELETE) {
+            transactionDao.hardDelete(id)
+        } else {
+            transactionDao.updateSyncStatus(id, SyncStatus.SYNCED)
+        }
+    }
+
+    override suspend fun markFriendSynced(id: String) {
+        val item = friendDao.getFriendById(id)
+        if (item?.syncStatus == SyncStatus.PENDING_DELETE) {
+            friendDao.hardDelete(id)
+        } else {
+            friendDao.updateSyncStatus(id, SyncStatus.SYNCED)
+        }
+    }
+
+    override suspend fun markLedgerSynced(id: String) {
+        val item = friendLedgerDao.getPendingSyncLedgers().find { it.id == id }
+        if (item?.syncStatus == SyncStatus.PENDING_DELETE) {
+            friendLedgerDao.hardDelete(id)
+        } else {
+            friendLedgerDao.updateSyncStatus(id, SyncStatus.SYNCED)
+        }
+    }
+
+    override suspend fun markCategorySynced(name: String) {
+        val item = categoryDao.getCategoryByName(name)
+        if (item?.syncStatus == SyncStatus.PENDING_DELETE) {
+            categoryDao.hardDelete(name)
+        } else {
+            categoryDao.updateSyncStatus(name, SyncStatus.SYNCED)
+        }
+    }
+
+    override suspend fun markBudgetSynced(id: String) {
+        budgetDao.updateSyncStatus(id, SyncStatus.SYNCED)
+    }
+
+    override suspend fun pullFromCloud(userId: String) {
+        if (userId.isBlank() || userId == "local_offline_user") return
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+
+        try {
+            // Targeted query: only retrieve documents belonging to authenticated userId
+            val userDoc = db.collection("users").document(userId)
+
+            // 1. Transactions
+            val txSnap = userDoc.collection("transactions").get().await()
+            for (doc in txSnap.documents) {
+                val data = doc.data ?: continue
+                val local = transactionDao.getTransactionById(doc.id)
+                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
+                // Conflict resolution: Cloud wins only if newer and local is not currently PENDING_UPLOAD or PENDING_DELETE
+                if (local == null || (local.syncStatus == SyncStatus.SYNCED && cloudUpdatedAt > local.updatedAt)) {
+                    val entity = TransactionEntity(
+                        id = doc.id,
+                        amountPaise = (data["amountPaise"] as? Long) ?: 0L,
+                        type = TransactionType.valueOf((data["type"] as? String) ?: TransactionType.EXPENSE.name),
+                        category = (data["category"] as? String) ?: "Other",
+                        timestamp = (data["timestamp"] as? Long) ?: System.currentTimeMillis(),
+                        note = data["note"] as? String,
+                        syncStatus = SyncStatus.SYNCED,
+                        userId = userId,
+                        updatedAt = cloudUpdatedAt
+                    )
+                    transactionDao.insertTransaction(entity)
+                }
+            }
+
+            // 2. Friends
+            val friendSnap = userDoc.collection("friends").get().await()
+            for (doc in friendSnap.documents) {
+                val data = doc.data ?: continue
+                val local = friendDao.getFriendById(doc.id)
+                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
+                if (local == null || (local.syncStatus == SyncStatus.SYNCED && cloudUpdatedAt > local.updatedAt)) {
+                    val entity = FriendEntity(
+                        id = doc.id,
+                        name = (data["name"] as? String) ?: "Friend",
+                        phone = data["phone"] as? String,
+                        syncStatus = SyncStatus.SYNCED,
+                        userId = userId,
+                        updatedAt = cloudUpdatedAt
+                    )
+                    friendDao.insertFriend(entity)
+                }
+            }
+
+            // 3. Friend Ledgers
+            val ledgerSnap = userDoc.collection("friend_ledgers").get().await()
+            for (doc in ledgerSnap.documents) {
+                val data = doc.data ?: continue
+                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
+                val entity = FriendLedgerEntity(
+                    id = doc.id,
+                    friendId = (data["friendId"] as? String) ?: "",
+                    amountPaise = (data["amountPaise"] as? Long) ?: 0L,
+                    direction = LedgerDirection.valueOf((data["direction"] as? String) ?: LedgerDirection.THEY_OWE_YOU.name),
+                    note = data["note"] as? String,
+                    timestamp = (data["timestamp"] as? Long) ?: System.currentTimeMillis(),
+                    isSettled = (data["isSettled"] as? Boolean) ?: false,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = cloudUpdatedAt
+                )
+                friendLedgerDao.insertLedger(entity)
+            }
+
+            // 4. Categories
+            val catSnap = userDoc.collection("categories").get().await()
+            for (doc in catSnap.documents) {
+                val data = doc.data ?: continue
+                val entity = CategoryEntity(
+                    name = doc.id,
+                    iconKey = (data["iconKey"] as? String) ?: "ghost",
+                    budgetPaise = (data["budgetPaise"] as? Long) ?: 0L,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = (data["updatedAt"] as? Long) ?: System.currentTimeMillis()
+                )
+                categoryDao.insertCategory(entity)
+            }
+
+            // 5. User Budget Settings
+            val budgetDoc = userDoc.collection("settings").document("budget").get().await()
+            if (budgetDoc.exists()) {
+                val data = budgetDoc.data
+                val budgetPaise = (data?.get("budgetPaise") as? Long) ?: 0L
+                budgetDao.setBudget(
+                    UserBudgetEntity(
+                        id = "current_budget",
+                        budgetPaise = budgetPaise,
+                        syncStatus = SyncStatus.SYNCED,
+                        userId = userId,
+                        updatedAt = (data?.get("updatedAt") as? Long) ?: System.currentTimeMillis()
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("GhostPocketSync", "Cloud pull failed: ${e.message}")
+        }
+    }
+
+    override suspend fun clearLocalCache() {
+        transactionDao.clearAll()
+        friendDao.clearAll()
+        friendLedgerDao.clearAll()
+        categoryDao.clearAll()
+        budgetDao.clearAll()
+    }
+
+    override val monthlySummary: Flow<MonthlySummary> =
+        combine(
+            transactionDao.getAllTransactions(),
+            budgetDao.getBudget(),
+            currentMonthTimeRangeFlow()
+        ) { txs, budgetEntity, (start, end) ->
+            val monthTxs = txs.filter { it.timestamp in start..end }
+            val income = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
+            val expense = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
+            MonthlySummary(
+                totalIncomePaise = income,
+                totalExpensePaise = expense,
+                initialBudgetPaise = budgetEntity?.budgetPaise ?: 0L
+            )
+        }
+
+    override val categorySpendsCurrentMonth: Flow<List<CategorySpend>> =
+        combine(
+            transactionDao.getAllTransactions(),
+            categoryDao.getAllCategories(),
+            currentMonthTimeRangeFlow()
+        ) { txs, categories, (start, end) ->
+            val monthExpenses = txs.filter { it.type == TransactionType.EXPENSE && it.timestamp in start..end }
+            val totalExpense = monthExpenses.sumOf { it.amountPaise }
+            val catBudgetMap = categories.associate { it.name to it.budgetPaise }
+            
+            if (categories.isEmpty() && totalExpense <= 0L) {
+                emptyList()
+            } else {
+                val groupMap = monthExpenses.groupBy { it.category }
+                val allCatNames = (categories.map { it.name } + groupMap.keys).distinct()
+                
+                allCatNames.map { cat ->
+                    val catTotal = groupMap[cat]?.sumOf { it.amountPaise } ?: 0L
+                    val allocated = catBudgetMap[cat] ?: 0L
+                    val pct = if (totalExpense > 0L) catTotal.toFloat() / totalExpense.toFloat() else 0f
+                    CategorySpend(
+                        category = cat,
+                        totalPaise = catTotal,
+                        percentage = pct,
+                        allocatedBudgetPaise = allocated
+                    )
+                }.sortedByDescending { it.totalPaise }
+            }
+        }
+
+    override val allFriends: Flow<List<FriendEntity>> =
+        friendDao.getAllFriends()
+
+    override val allFriendsWithBalances: Flow<List<FriendBalance>> =
+        friendDao.getAllFriends().combine(friendLedgerDao.getAllLedgerEntries()) { friends, ledgers ->
+            friends.map { friend ->
+                val friendLedgers = ledgers.filter { it.friendId == friend.id && !it.isSettled }
+                val theyOweYou = friendLedgers
+                    .filter { it.direction == LedgerDirection.THEY_OWE_YOU }
+                    .sumOf { it.amountPaise }
+                val youOweThem = friendLedgers
+                    .filter { it.direction == LedgerDirection.YOU_OWE_THEM }
+                    .sumOf { it.amountPaise }
+
+                FriendBalance(
+                    friend = friend,
+                    theyOweYouPaise = theyOweYou,
+                    youOweThemPaise = youOweThem
+                )
+            }
+        }
+
+    override fun getLedgerEntriesForFriend(friendId: String): Flow<List<FriendLedgerEntity>> =
+        friendLedgerDao.getLedgerEntriesForFriend(friendId)
+
+    override suspend fun addFriend(name: String, phone: String?): FriendEntity {
+        val friend = FriendEntity(
+            id = UUID.randomUUID().toString(),
+            name = name.trim(),
+            phone = phone?.trim()?.takeIf { it.isNotBlank() },
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            userId = currentUserIdProvider(),
+            updatedAt = System.currentTimeMillis()
+        )
+        friendDao.insertFriend(friend)
+        return friend
+    }
+
+    override val allCategories: Flow<List<CategoryEntity>> =
+        categoryDao.getAllCategories()
+
+    override suspend fun updateFriend(friend: FriendEntity) {
+        val updated = friend.copy(
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            updatedAt = System.currentTimeMillis()
+        )
+        friendDao.updateFriend(updated)
+    }
+
+    override suspend fun addLedgerEntry(
+        friendId: String,
+        amountPaise: Long,
+        direction: LedgerDirection,
+        note: String?
+    ) {
+        if (amountPaise <= 0) return
+        val entry = FriendLedgerEntity(
+            id = UUID.randomUUID().toString(),
+            friendId = friendId,
+            amountPaise = amountPaise,
+            direction = direction,
+            note = note,
+            timestamp = System.currentTimeMillis(),
+            isSettled = false,
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            userId = currentUserIdProvider(),
+            updatedAt = System.currentTimeMillis()
+        )
+        friendLedgerDao.insertLedger(entry)
+    }
+
+    override suspend fun recordRepayment(
+        friendId: String,
+        repaymentAmountPaise: Long,
+        isRepayingToUser: Boolean,
+        note: String?
+    ) {
+        if (repaymentAmountPaise <= 0) return
+        val direction = if (isRepayingToUser) {
+            LedgerDirection.YOU_OWE_THEM
+        } else {
+            LedgerDirection.THEY_OWE_YOU
+        }
+
+        val entry = FriendLedgerEntity(
+            id = UUID.randomUUID().toString(),
+            friendId = friendId,
+            amountPaise = repaymentAmountPaise,
+            direction = direction,
+            note = note ?: if (isRepayingToUser) "Repaid you" else "You repaid",
+            timestamp = System.currentTimeMillis(),
+            isSettled = false,
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            userId = currentUserIdProvider(),
+            updatedAt = System.currentTimeMillis()
+        )
+        friendLedgerDao.insertLedger(entry)
+    }
+
+    override suspend fun settleFriendLedger(friendId: String) {
+        friendLedgerDao.settleAllForFriend(friendId)
+    }
+
+    override suspend fun splitBill(
+        title: String,
+        totalPaise: Long,
+        payerFriendId: String?,
+        participantFriendIds: List<String>,
+        category: String
+    ) {
+        if (totalPaise <= 0) return
+        val totalMembers = participantFriendIds.size + 1
+        if (totalMembers <= 1) return
+
+        val shares = MoneyUtils.splitEqually(totalPaise, totalMembers)
+        val userShare = shares.first()
+
+        if (payerFriendId == null) {
+            val tx = TransactionEntity(
+                amountPaise = userShare,
+                type = TransactionType.EXPENSE,
+                category = category,
+                note = "$title (Your share of ${MoneyUtils.formatPaiseToInr(totalPaise)})",
+                userId = currentUserIdProvider()
+            )
+            addTransaction(tx)
+
+            participantFriendIds.forEachIndexed { index, fId ->
+                val fShare = shares[index + 1]
+                addLedgerEntry(
+                    friendId = fId,
+                    amountPaise = fShare,
+                    direction = LedgerDirection.THEY_OWE_YOU,
+                    note = "$title (Split)"
+                )
+            }
+        } else {
+            addLedgerEntry(
+                friendId = payerFriendId,
+                amountPaise = userShare,
+                direction = LedgerDirection.YOU_OWE_THEM,
+                note = "$title (Split paid by friend)"
+            )
+            val tx = TransactionEntity(
+                amountPaise = userShare,
+                type = TransactionType.EXPENSE,
+                category = category,
+                note = "$title (Your share)",
+                userId = currentUserIdProvider()
+            )
+            addTransaction(tx)
+        }
+    }
+
+    private fun currentMonthTimeRangeFlow(): Flow<Pair<Long, Long>> = kotlinx.coroutines.flow.flow {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+
+        cal.add(Calendar.MONTH, 1)
+        cal.add(Calendar.MILLISECOND, -1)
+        val end = cal.timeInMillis
+
+        emit(Pair(start, end))
+    }
+}
