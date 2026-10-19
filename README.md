@@ -1,58 +1,110 @@
 # GhostPocket — Minimal Spooky Student Expense Tracker 👻💰
 
-**GhostPocket** is a native Android expense tracker and shared debt ledger designed for college students. Crafted with a monochrome **Bento Grid + Claymorphism** aesthetic, playful spooky charm, and an offline-first architecture powered by Jetpack Compose, Room, and a cost-optimized **Cloudflare D1 & Workers** backend.
+**GhostPocket** is a native Android expense tracker and shared debt ledger designed specifically for college students. Crafted with a monochrome **Bento Grid + Claymorphism** aesthetic, playful spooky charm, and an offline-first architecture powered by Jetpack Compose, Room, and a cost-optimized **Cloudflare D1 & Workers** backend.
 
 ---
 
-## 📱 Screenshots
+## 📸 App Tour & Feature Walkthrough
 
+### 1. Bento Dashboard & Dynamic Ghost Mascot
 <div align="center">
-
-| Home (Bento Dashboard) | Activity Log (Spells) | Ghost Squad (Shared Debts) | Spooky Insights (Alchemy) |
-|:---:|:---:|:---:|:---:|
-| <img src="screenshots/Screenshot_20261019_154927.png" width="200" alt="Home Dashboard" /> | <img src="screenshots/Screenshot_20261019_155011.png" width="200" alt="Activity Log" /> | <img src="screenshots/Screenshot_20261019_155023.png" width="200" alt="Ghost Squad" /> | <img src="screenshots/Screenshot_20261019_155041.png" width="200" alt="Spooky Insights" /> |
-
-| Add Transaction | Split Bill Wizard | Friend Ledger & Exorcism | Spooky Settings |
-|:---:|:---:|:---:|:---:|
-| <img src="screenshots/Screenshot_20261019_155100.png" width="200" alt="Add Transaction" /> | <img src="screenshots/Screenshot_20261019_155110.png" width="200" alt="Split Bill Wizard" /> | <img src="screenshots/Screenshot_20261019_155152.png" width="200" alt="Friend Ledger" /> | <img src="screenshots/Screenshot_20261019_155054.png" width="200" alt="Spooky Settings" /> |
-
+  <img src="screenshots/Screenshot_20261019_154927.png" width="280" alt="Home Dashboard" />
 </div>
 
+- **Unified Tactile Bento Header**: Clean typography (`Boo! 👋 GhostPocket`) flanked by a tactile 3D clay Settings button (`⚙️`) and an animated Mascot avatar card.
+- **Dynamic Mascot Moods**: An original micro-mascot blob that reacts to your financial health in real time:
+  - 🎩 **Rich Ghost**: When savings are high.
+  - 😊 **Happy Ghost**: Balanced spending.
+  - 🤔 **Thinking Ghost**: High expense velocity.
+  - 😱 **Spooked Ghost**: When you exceed your allowance.
+- **Twin Bento Balance Cards**: High-contrast cards for **Fed 🪙** (Income) and **Vanished 💸** (Expenses).
+- **Category Realms with Live Gauges**: Real-time progress bars indicating spent vs allocated gold (e.g. *Mess And Room*, *Gym*) with remaining balances.
+
 ---
 
-## ✨ Features
+### 2. Fast Transaction Drawer (Cast to Ledger)
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155011.png" width="280" alt="Record Expense" />
+</div>
 
-- **🎨 Bento Grid + Claymorphism UI**: 
-  - Tactile 3D soft clay surfaces, specular borders, fluid elevations, and strict monochrome palette (pure black, crisp white, deep slate, and neutral grays).
-  - Unified tactile Bento headers across every screen featuring custom `ClayIconButton` controls and zero redundant top bars.
-- **👻 Animated Mascot & Expressions**: 
-  - An original vector micro-mascot blob with dynamic moods (Rich Ghost 🎩, Happy, Thinking, Spooked 😱) that reacts in real time to your spending velocity and remaining budget.
-- **📜 Animated Crypt Data Restoration**:
-  - Polished loading screen with an animated Thinking Mascot and progress spinner (*"Conjuring your data from the crypt... 📜✨"*) when signing in on a new device.
-- **💰 Monthly Allowance & Budgeting**: 
-  - Set your monthly budget with live progress bars, danger zone alerts, and funny status messages.
-- **🏷️ 100% Custom Category Control & Budgeting**:
-  - Zero hardcoded defaults; create and delete custom categories (e.g., *Chai*, *Books*, *Hostel Rent*).
-  - Allocate category-specific budgets with live progress tracking in the **Insights 🔮** dashboard.
-- **👥 Squad Ledgers & Bill Splitting**:
-  - Track bilateral debts (*"They Owe You 📜"* vs *"You Owe Them 💸"*).
-  - Fair bill splitting with remainder-distributed exact paise division (zero 1-paisa rounding errors).
-  - Debt exorcism (settle individual or all balances with one tap).
-- **💬 WhatsApp Card Payment Reminders**:
-  - Store friends' WhatsApp numbers directly.
-  - Automatically renders an aesthetic 1080x1350 card image (with cartoon mascot, anime begging eyes, speech bubble, and meme friendship disclaimer) and opens it directly in WhatsApp with zero cloud storage costs.
-- **🔑 Flexible Authentication**:
-  - Email & Password with SHA-256 credential verification and friendly error messages.
-  - **Sign In with Google** (`play-services-auth` + Firebase Auth).
-  - **Ghost Walk (Continue as Guest)** for instant, private offline exploration.
-- **⚡ Ultra-Optimized Cloudflare D1 Backend**:
-  - **Single-Roundtrip 2-Way Sync** (`POST /api/sync`): Pushes local dirty records and pulls remote updates in one atomic HTTP transaction.
-  - **Only-When-Dirty Gating**: Minimizes Worker invocations by only syncing when local mutations exist.
-  - **Atomic Transactions**: Batch upsert with D1 SQLite avoids partial writes.
-- **☁️ Multi-Cloud & Offline-First**:
-  - **Room Database** acts as the single source of truth (0ms latency, works 100% offline).
-  - Supports both Cloudflare D1 (Edge SQLite) and Firebase Firestore.
-  - **Account Isolation**: Local cache is purged on sign-out to prevent data leakage between accounts.
+- **Frictionless Logging**: One tap on the tactile floating `+ Add` button summons the curved bottom sheet.
+- **Dual Flow**: Instant toggle between **Expense 💸** and **Income 🪙**.
+- **Realm Pills**: Quick-tap category selection with a dedicated `+ New` button for creating realms on the fly.
+- **Spell Notes**: Add optional context (e.g. *"Evening chai & samosa"*) and hit **Cast to Ledger ✨**.
+
+---
+
+### 3. Ghost Squad (Bilateral Debt Tracking)
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155054.png" width="280" alt="Ghost Squad" />
+</div>
+
+- **College Debt Simplified**: Eliminates awkwardness between friends and roommates by maintaining a transparent ledger.
+- **At-a-Glance Totals**: Two dedicated Bento summary blocks:
+  - **They Owe You 📜**: Total money lent to friends.
+  - **You Owe Them 💸**: Total money you need to pay back.
+- **Individual Friend Cards**: Tap any squad member to inspect their complete bilateral ledger.
+
+---
+
+### 4. Summoning Friends with WhatsApp Integration
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155100.png" width="280" alt="Summon Friend" />
+</div>
+
+- **Seamless Contact Linking**: Enter your friend's name and optional WhatsApp phone number.
+- **Zero Third-Party APIs Needed**: The app links natively to the friend's WhatsApp chat without requiring complex external APIs.
+
+---
+
+### 5. Friend Ledgers, Debt History & WhatsApp Reminder Cards
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155110.png" width="270" alt="Friend Ledger" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="screenshots/Screenshot_20261019_155152.png" width="270" alt="Add Debt Entry" />
+</div>
+
+- **Bilateral Debt Management**: Add individual lending (`You Lent 🪙`) or borrowing (`You Borrowed 💸`) entries with timestamps and notes.
+- **💬 WhatsApp Card Generator**:
+  - Automatically draws a custom 1080x1350 reminder card using Android's native Canvas.
+  - Features an adorable begging-eyed ghost mascot, speech bubble with the exact amount (₹), and a playful friendship disclaimer.
+  - Shares directly to WhatsApp with 0 cloud storage cost!
+- **Exorcise All Debts**: Tap to settle all balances with one confirmation.
+
+---
+
+### 6. Fair Bill Splitting Wizard
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155041.png" width="280" alt="Split Bill Wizard" />
+</div>
+
+- **Split Among Squad ⚔️**: Perfect for shared hostel groceries, cab rides, or group dining.
+- **Exact Paise Precision**: Algorithm distributes 1-paisa division remainders fairly so no coins disappear.
+- **Payer Selection**: Choose whether you paid or a friend paid, automatically calculating who owes whom.
+
+---
+
+### 7. Custom Category Realms
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155229.png" width="280" alt="Create Category" />
+</div>
+
+- **100% User Defined**: No rigid preset categories. Create custom realms (*Chai*, *Books*, *Hostel Rent*, *Gym*).
+- **Allocated Budgets**: Set optional spending limits per category to see live progress bars on the home dashboard.
+
+---
+
+### 8. Spooky Settings & Cloud Spirits Sync
+<div align="center">
+  <img src="screenshots/Screenshot_20261019_155023.png" width="280" alt="Spooky Settings" />
+</div>
+
+- **Monthly Allowance**: Configure and update your primary monthly budget.
+- **Category Management**: Edit budgets or delete unused realms.
+- **Cloud Spirits & Sync ☁️**: 
+  - Real-time sync status.
+  - "Sync Now 🔄" button triggers an immediate batch push/pull with the Cloudflare D1 backend.
+- **Account Control**: One-tap secure Sign Out that safely isolates local Room data.
 
 ---
 
@@ -60,89 +112,65 @@
 
 | Layer | Technology |
 |---|---|
-| **Language** | Kotlin (100% Native) |
-| **UI Framework** | Jetpack Compose & Material 3 |
+| **Language** | Kotlin 100% Native |
+| **UI Framework** | Jetpack Compose + Material 3 |
 | **Design System** | Bento Grid + Claymorphism (Strict Monochrome) |
 | **Architecture** | Unidirectional Data Flow (UDF) + MVVM |
-| **Local Storage** | Room Database (SQLite) + Coroutine Flows |
-| **Currency Calculations** | Integer Paise (`Long`) for exact financial precision |
-| **Backend & Sync** | Cloudflare Workers + Cloudflare D1 (Edge SQLite) via Hono v4 |
-| **Alternative Cloud DB** | Cloud Firestore |
-| **Authentication** | Cloudflare D1 Auth + Firebase Auth (Google Sign-In, Email/Password, Guest) |
-| **Background Sync** | AndroidX WorkManager (Debounced, network-constrained, exponential backoff) |
+| **Local Database** | Room Database (SQLite) + Coroutine Flows |
+| **Financial Accuracy** | Integer Paise (`Long`) for exact currency math |
+| **Backend API** | Cloudflare Workers + Hono v4 (TypeScript) |
+| **Edge Database** | Cloudflare D1 (Serverless SQLite) |
+| **Live Backend URL** | `https://ghostpocket-backend.omprakashverma-in-fda.workers.dev` |
+| **Alternative Backend** | Cloud Firestore + Firebase Auth |
+| **Background Sync** | AndroidX WorkManager (Debounced, network-constrained) |
 | **Build System** | Gradle Kotlin DSL (`build.gradle.kts`) |
-| **JDK Requirement** | JDK 21 (Temurin / OpenJDK 21) |
-| **Testing** | JUnit 4 unit tests |
+| **Target JDK** | JDK 21 (Temurin / OpenJDK 21) |
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Cost-Optimized Cloud Sync Architecture
 
-### Prerequisites
-- Android Studio Ladybug or newer
-- JDK 21 (`java -version` should report 21.x)
-- Android device or emulator running Android 8.0 (API 26) or higher
-
-### Build & Run
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/Pocket-Budget.git
-   cd Pocket-Budget
-   ```
-2. Build the debug APK:
-   ```powershell
-   $env:JAVA_HOME = "C:\path\to\jdk-21"
-   .\gradlew.bat assembleDebug
-   ```
-3. Run unit tests:
-   ```powershell
-   .\gradlew.bat testDebugUnitTest
-   ```
-4. Install to an active emulator or device:
-   ```powershell
-   adb install -r app/build/outputs/apk/debug/app-debug.apk
-   adb shell am start -n com.ghostpocket.app/.MainActivity
-   ```
+1. **Single-Roundtrip 2-Way Sync (`POST /api/sync`)**:
+   - Pushes local dirty records and pulls remote updates in a **single atomic HTTP request**.
+   - Cuts Cloudflare Worker invocations in half.
+2. **Only-When-Dirty Gating**:
+   - Suppresses network calls unless local records have dirty flags (`isDirty == true`) or periodic sync thresholds elapse.
+3. **Crypt Data Restoration**:
+   - When logging in with an existing account on a new device, a dedicated loading screen with an animated Thinking Ghost and spinner restores your data before rendering the dashboard.
 
 ---
 
-## ⚡ Cloudflare D1 Backend
+## 📦 Building & Sharing the APK
 
-The production-ready backend is located in [`/backend`](file:///backend) and deployed to Cloudflare Workers:
+The default APK filename has been configured to build as:
+### 🎁 **`GhostPocket-v1.0.0.apk`**
 
-- **Live URL**: `https://ghostpocket-backend.omprakashverma-in-fda.workers.dev`
-- **Database**: Cloudflare D1 (`ghostpocket-db`)
-- **Key Endpoints**:
-  - `POST /api/auth/register` — Register account
-  - `POST /api/auth/login` — Sign in with credential verification
-  - `POST /api/auth/google` — Sign in with Google ID token
-  - `POST /api/sync` — Unified 2-way sync (push dirty records + pull updates in 1 roundtrip)
-
-To run the backend locally or deploy your own:
-```bash
-cd backend
-npm install
-npx wrangler d1 execute ghostpocket-db --local --file=./schema.sql
-npm run dev
+### Build with PowerShell:
+```powershell
+$env:JAVA_HOME = "C:\path\to\jdk-21"
+.\gradlew.bat assembleDebug
 ```
+The output file will be generated at:
+`app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk`
 
-For deployment to Cloudflare:
-```bash
-npm run deploy
-```
+### Quick Commands:
+- **Locate and open in Windows Explorer**:
+  ```powershell
+  explorer /select,"app\build\outputs\apk\debug\GhostPocket-v1.0.0.apk"
+  ```
+- **Install directly to a connected phone**:
+  ```powershell
+  adb install -r app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk
+  ```
+- **Publish to GitHub Releases**:
+  ```bash
+  git push origin main
+  gh release create v1.0.0 app/build/outputs/apk/debug/GhostPocket-v1.0.0.apk --title "GhostPocket v1.0.0 👻" --notes "Bento Grid + Claymorphism expense tracker"
+  ```
 
 ---
 
-## ☁️ Firebase Configuration (Optional)
-
-GhostPocket can also be configured with Firebase:
-1. Add `google-services.json` to the `app/` folder.
-2. In Firebase Console, enable **Email/Password**, **Google**, and **Anonymous** sign-in methods.
-3. Apply security rules from [`firestore.rules`](file:///firestore.rules).
-
----
-
-## 📜 License & Acknowledgments
+## 📜 License
 
 Built with 👻 for college mortals tracking their coins.
 Distributed under the MIT License.
