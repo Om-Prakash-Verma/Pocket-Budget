@@ -23,7 +23,10 @@ import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.sync.SyncWorker
 import com.ghostpocket.app.ui.components.ClayButton
 import com.ghostpocket.app.ui.components.ClayCard
+import com.ghostpocket.app.ui.components.GhostMascot
+import com.ghostpocket.app.ui.components.GhostMood
 import com.ghostpocket.app.ui.screens.*
+
 import com.ghostpocket.app.ui.theme.GhostPocketTheme
 import com.ghostpocket.app.viewmodel.GhostPocketViewModel
 import com.ghostpocket.app.viewmodel.GhostPocketViewModelFactory
@@ -120,6 +123,56 @@ fun MainContent(viewModel: GhostPocketViewModel) {
         )
         return
     }
+
+    // Initial Data Fetching Screen (when logging in with existing ID)
+    if (uiState.isInitialDataFetching) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                ClayCard(
+                    shapeRadius = 32.dp,
+                    elevation = 10.dp,
+                    modifier = Modifier.size(110.dp)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        GhostMascot(
+                            size = 80.dp,
+                            mood = GhostMood.THINKING
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.onBackground,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Conjuring your data from the crypt... 📜✨",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Restoring spells, gold ledger & categories",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
 
     Scaffold(
         topBar = {

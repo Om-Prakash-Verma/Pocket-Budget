@@ -18,6 +18,7 @@ data class GhostPocketUiState(
     val categorySpends: List<CategorySpend> = emptyList(),
     val userBudget: UserBudgetEntity? = null,
     val isSyncing: Boolean = false,
+    val isInitialDataFetching: Boolean = false,
     val userMessage: String? = null,
     val isAuthenticated: Boolean = false,
     val authLoading: Boolean = false,
@@ -32,6 +33,7 @@ class GhostPocketViewModel(
 
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _isSyncing = MutableStateFlow(false)
+    private val _isInitialDataFetching = MutableStateFlow(false)
     private val _authLoading = MutableStateFlow(false)
     private val _authError = MutableStateFlow<String?>(null)
     private val _isAuthenticated = MutableStateFlow(
@@ -42,6 +44,7 @@ class GhostPocketViewModel(
             false
         }
     )
+
 
     val uiState: StateFlow<GhostPocketUiState> = combine(
         repository.monthlySummary,
@@ -72,11 +75,14 @@ class GhostPocketViewModel(
         state.copy(authLoading = loading)
     }.combine(_authError) { state, err ->
         state.copy(authError = err)
+    }.combine(_isInitialDataFetching) { state, fetching ->
+        state.copy(isInitialDataFetching = fetching)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = GhostPocketUiState()
     )
+
 
     fun signIn(email: String, pass: String) {
         if (email.isBlank() || pass.isBlank()) {
@@ -115,8 +121,27 @@ class GhostPocketViewModel(
 
                 if (authSuccess) {
                     _isAuthenticated.value = true
+                    _isInitialDataFetching.value = true
                     _userMessage.value = "Welcome back! 👻"
-                    triggerSync()
+                    
+                    // Fetch cloud data immediately on login
+                    viewModelScope.launch {
+                        try {
+                            if (d1ApiClient != null) {
+                                val pullRes = d1ApiClient.unifiedSync(
+                                    com.ghostpocket.app.data.remote.UnifiedSyncRequest(sinceTimestamp = 0L)
+                                )
+                                pullRes.remoteUpdates?.let { remote ->
+                                    repository.applyD1PullResults(remote, d1ApiClient.currentUserId)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // If network failure, schedule background retry
+                            triggerSync()
+                        } finally {
+                            _isInitialDataFetching.value = false
+                        }
+                    }
                 } else {
                     _authError.value = failureReason ?: "Crypt doors sealed! Invalid email or password."
                 }
@@ -127,6 +152,7 @@ class GhostPocketViewModel(
             }
         }
     }
+
 
     fun signUp(email: String, pass: String) {
         if (email.isBlank() || pass.length < 6) {
@@ -195,8 +221,25 @@ class GhostPocketViewModel(
                 }
 
                 _isAuthenticated.value = true
+                _isInitialDataFetching.value = true
                 _userMessage.value = "Welcome, Google Traveler! 👻✨"
-                triggerSync()
+                
+                viewModelScope.launch {
+                    try {
+                        if (d1ApiClient != null) {
+                            val pullRes = d1ApiClient.unifiedSync(
+                                com.ghostpocket.app.data.remote.UnifiedSyncRequest(sinceTimestamp = 0L)
+                            )
+                            pullRes.remoteUpdates?.let { remote ->
+                                repository.applyD1PullResults(remote, d1ApiClient.currentUserId)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        triggerSync()
+                    } finally {
+                        _isInitialDataFetching.value = false
+                    }
+                }
             } catch (e: Exception) {
                 _authError.value = e.localizedMessage ?: "Google sign-in spell failed."
             } finally {
@@ -204,6 +247,7 @@ class GhostPocketViewModel(
             }
         }
     }
+
 
     fun continueAsGuest() {
         viewModelScope.launch {
