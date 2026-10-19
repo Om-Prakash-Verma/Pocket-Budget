@@ -129,7 +129,21 @@ class D1ApiClient(
             client.newCall(req).execute().use { response ->
                 val resBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    AuthResponse(error = "HTTP ${response.code}: $resBody")
+                    val parsedError = try {
+                        val obj = json.decodeFromString<AuthResponse>(resBody)
+                        obj.error
+                    } catch (e: Exception) {
+                        null
+                    }
+                    val userFriendly = when {
+                        response.code == 401 || parsedError?.contains("invalid", ignoreCase = true) == true ->
+                            "Invalid email or password. Please try again! 👻"
+                        response.code == 400 && parsedError?.contains("already exists", ignoreCase = true) == true ->
+                            "Account already exists! Tap 'Sign In' instead. 🚪"
+                        !parsedError.isNullOrBlank() -> parsedError
+                        else -> "Crypt doors sealed! Check credentials."
+                    }
+                    AuthResponse(error = userFriendly)
                 } else {
                     val authRes = json.decodeFromString<AuthResponse>(resBody)
                     if (authRes.userId != null) {
@@ -141,7 +155,8 @@ class D1ApiClient(
                 }
             }
         } catch (e: Exception) {
-            AuthResponse(error = e.localizedMessage ?: "Network connection failed")
+            AuthResponse(error = "Network connection failed. Check your internet! 🌐")
         }
     }
 }
+
