@@ -2,6 +2,7 @@ package com.ghostpocket.app
 
 import android.app.Application
 import com.ghostpocket.app.data.local.GhostPocketDatabase
+import com.ghostpocket.app.data.remote.D1ApiClient
 import com.ghostpocket.app.data.repository.GhostPocketRepository
 import com.ghostpocket.app.data.repository.GhostPocketRepositoryImpl
 import com.google.firebase.FirebaseApp
@@ -11,6 +12,10 @@ import kotlinx.coroutines.SupervisorJob
 
 class GhostPocketApp : Application() {
     val applicationScope = CoroutineScope(SupervisorJob())
+
+    val d1ApiClient by lazy {
+        D1ApiClient(this)
+    }
 
     val database by lazy {
         GhostPocketDatabase.getDatabase(this)
@@ -24,14 +29,20 @@ class GhostPocketApp : Application() {
             categoryDao = database.categoryDao(),
             budgetDao = database.budgetDao(),
             currentUserIdProvider = {
-                try {
-                    FirebaseAuth.getInstance().currentUser?.uid ?: "local_user"
-                } catch (e: Exception) {
-                    "local_user"
+                val d1User = d1ApiClient.currentUserId
+                if (d1User.isNotBlank() && d1User != "guest_user") {
+                    d1User
+                } else {
+                    try {
+                        FirebaseAuth.getInstance().currentUser?.uid ?: "local_user"
+                    } catch (e: Exception) {
+                        "local_user"
+                    }
                 }
             }
         )
     }
+
 
     override fun onCreate() {
         super.onCreate()

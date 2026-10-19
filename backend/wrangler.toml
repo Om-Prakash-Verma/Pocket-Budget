@@ -1,0 +1,8 @@
+name = "ghostpocket-backend"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ghostpocket-db"
+database_id = "961fef79-259d-4685-aaa0-04210e014e18"

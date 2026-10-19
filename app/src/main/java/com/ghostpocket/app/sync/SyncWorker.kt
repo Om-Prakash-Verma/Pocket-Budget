@@ -3,22 +3,21 @@ package com.ghostpocket.app.sync
 import android.content.Context
 import androidx.work.*
 import com.ghostpocket.app.GhostPocketApp
+import com.ghostpocket.app.data.remote.*
 import com.ghostpocket.app.model.SyncStatus
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
+
 /**
- * Robust, batched, idempotent synchronization worker for GhostPocket.
+ * Dual Sync Worker for GhostPocket:
+ * Supports Cloudflare D1 (primary high-speed edge SQLite) with fallback to Firestore.
  * Features:
- * - Batched Firestore writes (respecting Firestore limits <= 500 ops per batch).
- * - Full entity coverage: transactions, friends, friend ledgers, categories, and budget settings.
- * - Dependent operation ordering preserved: Friends -> Ledgers -> Transactions.
- * - Idempotent SetOptions.merge() to eliminate duplicate writes on network retry.
- * - Exponential backoff retry on transient failures.
- * - Two-way sync: uploads pending local changes, then pulls any confirmed remote updates.
+ * - Batched writes to Cloudflare D1 backend.
+ * - Coalesces repeated and canceled local edits.
+ * - Two-way sync: pushes pending local records, then pulls updated remote records.
+ * - Exponential backoff retry via WorkManager.
  */
 class SyncWorker(
     appContext: Context,
@@ -28,24 +27,112 @@ class SyncWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as? GhostPocketApp ?: return Result.failure()
         val repo = app.repository
+        val d1Client = app.d1ApiClient
+
         val payload = repo.getPendingSyncItems()
 
-        val auth = FirebaseAuth.getInstance()
-        val currentUser = auth.currentUser
-        val userId = currentUser?.uid ?: "local_offline_user"
-
-        // If offline user or no internet yet, exit cleanly
-        if (userId == "local_offline_user" || userId.isBlank()) {
-            return Result.success()
+        // Determine user identity
+        val userId = if (d1Client.currentUserId.isNotBlank() && d1Client.currentUserId != "guest_user") {
+            d1Client.currentUserId
+        } else {
+            try {
+                FirebaseAuth.getInstance().currentUser?.uid ?: "guest_user"
+            } catch (e: Exception) {
+                "guest_user"
+            }
         }
 
-        val db = FirebaseFirestore.getInstance()
-        val userDoc = db.collection("users").document(userId)
+        // 1. Try Cloudflare D1 Sync First
+        try {
+            val d1PushRequest = D1SyncPushRequest(
+                transactions = payload.transactions.map { tx ->
+                    D1TransactionDto(
+                        id = tx.id,
+                        amountPaise = tx.amountPaise,
+                        type = tx.type.name,
+                        category = tx.category,
+                        timestamp = tx.timestamp,
+                        note = tx.note,
+                        paymentMethod = tx.paymentMethod,
+                        updatedAt = tx.updatedAt,
+                        isDeleted = (tx.syncStatus == SyncStatus.PENDING_DELETE)
+                    )
+                },
+                friends = payload.friends.map { f ->
+                    D1FriendDto(
+                        id = f.id,
+                        name = f.name,
+                        phone = f.phone,
+                        updatedAt = f.updatedAt,
+                        isDeleted = (f.syncStatus == SyncStatus.PENDING_DELETE)
+                    )
+                },
+                ledgers = payload.ledgers.map { l ->
+                    D1LedgerDto(
+                        id = l.id,
+                        friendId = l.friendId,
+                        amountPaise = l.amountPaise,
+                        direction = l.direction.name,
+                        note = l.note,
+                        timestamp = l.timestamp,
+                        isSettled = l.isSettled,
+                        updatedAt = l.updatedAt,
+                        isDeleted = (l.syncStatus == SyncStatus.PENDING_DELETE)
+                    )
+                },
+                categories = payload.categories.map { c ->
+                    D1CategoryDto(
+                        name = c.name,
+                        iconKey = c.iconKey,
+                        budgetPaise = c.budgetPaise,
+                        updatedAt = c.updatedAt,
+                        isDeleted = (c.syncStatus == SyncStatus.PENDING_DELETE)
+                    )
+                },
+                budgets = payload.budgets.map { b ->
+                    D1BudgetDto(
+                        id = b.id,
+                        budgetPaise = b.budgetPaise,
+                        updatedAt = b.updatedAt
+                    )
+                }
+            )
 
-        val res = try {
+            val pushRes = d1Client.pushSync(d1PushRequest)
+            if (pushRes.success) {
+                // Mark local items as SYNCED
+                payload.friends.forEach { repo.markFriendSynced(it.id) }
+                payload.ledgers.forEach { repo.markLedgerSynced(it.id) }
+                payload.transactions.forEach { repo.markTransactionSynced(it.id) }
+                payload.categories.forEach { repo.markCategorySynced(it.name) }
+                payload.budgets.forEach { repo.markBudgetSynced(it.id) }
+
+                // Pull latest updates from D1
+                val pullRes = d1Client.pullSync()
+                repo.applyD1PullResults(pullRes, userId)
+
+                android.util.Log.d("GhostPocketSync", "D1 sync completed successfully for user $userId")
+                return Result.success()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("GhostPocketSync", "D1 sync attempt had error, checking fallback: ${e.message}")
+        }
+
+        // 2. Fallback to Firebase Firestore if D1 backend is offline or unconfigured
+        return try {
+            val auth = FirebaseAuth.getInstance()
+            val currentUser = auth.currentUser
+            val fbUserId = currentUser?.uid
+
+            if (fbUserId == null || fbUserId.isBlank()) {
+                return Result.success()
+            }
+
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val userDoc = db.collection("users").document(fbUserId)
             var currentBatch = db.batch()
             var operationCount = 0
-            val maxBatchOps = 450 // Safe threshold well below Firestore's 500 limit
+            val maxBatchOps = 450
 
             val syncedTxIds = mutableListOf<String>()
             val syncedFriendIds = mutableListOf<String>()
@@ -61,7 +148,8 @@ class SyncWorker(
                 }
             }
 
-            // 1. Friends (Dependency first: friends must exist before ledgers refer to them)
+
+            // Friends
             for (f in payload.friends) {
                 val docRef = userDoc.collection("friends").document(f.id)
                 if (f.syncStatus == SyncStatus.PENDING_DELETE) {
@@ -71,17 +159,17 @@ class SyncWorker(
                         "id" to f.id,
                         "name" to f.name,
                         "phone" to (f.phone ?: ""),
-                        "userId" to userId,
+                        "userId" to fbUserId,
                         "updatedAt" to f.updatedAt
                     )
-                    currentBatch.set(docRef, data, SetOptions.merge())
+                    currentBatch.set(docRef, data, com.google.firebase.firestore.SetOptions.merge())
                 }
                 syncedFriendIds.add(f.id)
                 operationCount++
                 commitBatchIfNeeded()
             }
 
-            // 2. Friend Ledgers (Dependency second: bills, debts and repayments)
+            // Friend Ledgers
             for (ledger in payload.ledgers) {
                 val docRef = userDoc.collection("friend_ledgers").document(ledger.id)
                 if (ledger.syncStatus == SyncStatus.PENDING_DELETE) {
@@ -95,17 +183,17 @@ class SyncWorker(
                         "note" to (ledger.note ?: ""),
                         "timestamp" to ledger.timestamp,
                         "isSettled" to ledger.isSettled,
-                        "userId" to userId,
+                        "userId" to fbUserId,
                         "updatedAt" to ledger.updatedAt
                     )
-                    currentBatch.set(docRef, data, SetOptions.merge())
+                    currentBatch.set(docRef, data, com.google.firebase.firestore.SetOptions.merge())
                 }
                 syncedLedgerIds.add(ledger.id)
                 operationCount++
                 commitBatchIfNeeded()
             }
 
-            // 3. Transactions
+            // Transactions
             for (tx in payload.transactions) {
                 val docRef = userDoc.collection("transactions").document(tx.id)
                 if (tx.syncStatus == SyncStatus.PENDING_DELETE) {
@@ -118,17 +206,17 @@ class SyncWorker(
                         "category" to tx.category,
                         "timestamp" to tx.timestamp,
                         "note" to (tx.note ?: ""),
-                        "userId" to userId,
+                        "userId" to fbUserId,
                         "updatedAt" to tx.updatedAt
                     )
-                    currentBatch.set(docRef, data, SetOptions.merge())
+                    currentBatch.set(docRef, data, com.google.firebase.firestore.SetOptions.merge())
                 }
                 syncedTxIds.add(tx.id)
                 operationCount++
                 commitBatchIfNeeded()
             }
 
-            // 4. Categories
+            // Categories
             for (cat in payload.categories) {
                 val docRef = userDoc.collection("categories").document(cat.name)
                 if (cat.syncStatus == SyncStatus.PENDING_DELETE) {
@@ -138,68 +226,52 @@ class SyncWorker(
                         "name" to cat.name,
                         "iconKey" to cat.iconKey,
                         "budgetPaise" to cat.budgetPaise,
-                        "userId" to userId,
+                        "userId" to fbUserId,
                         "updatedAt" to cat.updatedAt
                     )
-                    currentBatch.set(docRef, data, SetOptions.merge())
+                    currentBatch.set(docRef, data, com.google.firebase.firestore.SetOptions.merge())
                 }
                 syncedCategoryNames.add(cat.name)
                 operationCount++
                 commitBatchIfNeeded()
             }
 
-            // 5. User Budget Settings
+            // User Budget Settings
             for (b in payload.budgets) {
                 val docRef = userDoc.collection("settings").document("budget")
                 val data = hashMapOf(
                     "budgetPaise" to b.budgetPaise,
-                    "userId" to userId,
+                    "userId" to fbUserId,
                     "updatedAt" to b.updatedAt
                 )
-                currentBatch.set(docRef, data, SetOptions.merge())
+                currentBatch.set(docRef, data, com.google.firebase.firestore.SetOptions.merge())
                 syncedBudgetIds.add(b.id)
                 operationCount++
                 commitBatchIfNeeded()
             }
 
-            // Commit final batch if there are pending operations
             if (operationCount > 0) {
                 currentBatch.commit().await()
             }
 
-            // Only mark as synchronized in local Room AFTER successful cloud confirmation
+
             syncedFriendIds.forEach { repo.markFriendSynced(it) }
             syncedLedgerIds.forEach { repo.markLedgerSynced(it) }
             syncedTxIds.forEach { repo.markTransactionSynced(it) }
             syncedCategoryNames.forEach { repo.markCategorySynced(it) }
             syncedBudgetIds.forEach { repo.markBudgetSynced(it) }
 
-            // Pull latest remote updates for two-way synchronization
-            repo.pullFromCloud(userId)
-
-            android.util.Log.d(
-                "GhostPocketSync",
-                "Batched sync committed for user $userId (Txs: ${syncedTxIds.size}, Friends: ${syncedFriendIds.size}, Ledgers: ${syncedLedgerIds.size}, Cats: ${syncedCategoryNames.size})"
-            )
+            repo.pullFromCloud(fbUserId)
             Result.success()
         } catch (e: Exception) {
-            android.util.Log.e("GhostPocketSync", "Batched sync failed: ${e.message}", e)
-            if (runAttemptCount < 4) {
-                Result.retry()
-            } else {
-                Result.failure()
-            }
+            android.util.Log.e("GhostPocketSync", "Sync failed: ${e.message}", e)
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
-        return res
     }
 
     companion object {
         private const val SYNC_WORK_NAME = "ghostpocket_sync_work"
 
-        /**
-         * Schedules background synchronization with exponential backoff and network constraints.
-         * Can be invoked with a debounce delay (3-5 seconds idle period).
-         */
         fun scheduleSync(context: Context, initialDelaySeconds: Long = 3L) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)

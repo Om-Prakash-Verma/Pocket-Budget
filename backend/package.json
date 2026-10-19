@@ -1,0 +1,20 @@
+{
+  "name": "ghostpocket-backend",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker & D1 Backend for GhostPocket",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "d1:init": "wrangler d1 execute ghostpocket-db --remote --file=./schema.sql",
+    "d1:init:local": "wrangler d1 execute ghostpocket-db --local --file=./schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.151.1"
+  }
+}

@@ -39,10 +39,11 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: GhostPocketViewModel by viewModels {
         val app = application as GhostPocketApp
-        GhostPocketViewModelFactory(app.repository) {
+        GhostPocketViewModelFactory(app.repository, app.d1ApiClient) {
             SyncWorker.scheduleSync(applicationContext)
         }
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

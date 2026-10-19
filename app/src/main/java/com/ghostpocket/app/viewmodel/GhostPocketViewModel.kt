@@ -26,6 +26,7 @@ data class GhostPocketUiState(
 
 class GhostPocketViewModel(
     private val repository: GhostPocketRepository,
+    private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
     private val triggerSync: () -> Unit
 ) : ViewModel() {
 
@@ -34,6 +35,7 @@ class GhostPocketViewModel(
     private val _authLoading = MutableStateFlow(false)
     private val _authError = MutableStateFlow<String?>(null)
     private val _isAuthenticated = MutableStateFlow(
+        (d1ApiClient?.authToken != null && d1ApiClient.currentUserId != "guest_user") ||
         try {
             com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
         } catch (e: Exception) {
@@ -81,13 +83,29 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                com.google.firebase.auth.FirebaseAuth.getInstance()
-                    .signInWithEmailAndPassword(email, pass)
+                // Try Cloudflare D1 Auth First
+                var d1Success = false
+                if (d1ApiClient != null) {
+                    val res = d1ApiClient.login(email, pass)
+                    if (res.error == null && res.userId != null) {
+                        d1Success = true
+                    }
+                }
+
+                // If not D1 or D1 offline, try Firebase Auth
+                if (!d1Success) {
+                    try {
+                        com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .signInWithEmailAndPassword(email, pass)
+                    } catch (e: Exception) {
+                        if (d1ApiClient == null) throw e
+                    }
+                }
+
                 _isAuthenticated.value = true
                 _userMessage.value = "Welcome back! 👻"
                 triggerSync()
             } catch (e: Exception) {
-                // If offline or firebase auth fails, allow guest / demo access
                 _authError.value = e.localizedMessage ?: "Crypt doors sealed! Check credentials."
             } finally {
                 _authLoading.value = false
@@ -100,8 +118,25 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                com.google.firebase.auth.FirebaseAuth.getInstance()
-                    .createUserWithEmailAndPassword(email, pass)
+                // Try Cloudflare D1 Auth First
+                var d1Success = false
+                if (d1ApiClient != null) {
+                    val res = d1ApiClient.register(email, pass)
+                    if (res.error == null && res.userId != null) {
+                        d1Success = true
+                    }
+                }
+
+                // If not D1, register on Firebase
+                if (!d1Success) {
+                    try {
+                        com.google.firebase.auth.FirebaseAuth.getInstance()
+                            .createUserWithEmailAndPassword(email, pass)
+                    } catch (e: Exception) {
+                        if (d1ApiClient == null) throw e
+                    }
+                }
+
                 _isAuthenticated.value = true
                 _userMessage.value = "Account conjured! 🪄"
                 triggerSync()
@@ -118,8 +153,18 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-                com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential)
+                // Cloudflare D1 Google OAuth Verification
+                if (d1ApiClient != null) {
+                    d1ApiClient.googleSignIn(idToken)
+                }
+
+                try {
+                    val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+                    com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential)
+                } catch (e: Exception) {
+                    // Firebase offline / optional
+                }
+
                 _isAuthenticated.value = true
                 _userMessage.value = "Welcome, Google Traveler! 👻✨"
                 triggerSync()
@@ -135,6 +180,7 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             _authLoading.value = true
             try {
+                d1ApiClient?.clearAuth()
                 try {
                     com.google.firebase.auth.FirebaseAuth.getInstance().signInAnonymously()
                 } catch (e: Exception) {
@@ -150,6 +196,7 @@ class GhostPocketViewModel(
 
     fun signOut() {
         viewModelScope.launch {
+            d1ApiClient?.clearAuth()
             try {
                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
             } catch (e: Exception) {
@@ -158,11 +205,12 @@ class GhostPocketViewModel(
             // Clear local cache for account switching security & data isolation
             repository.clearLocalCache()
             _isAuthenticated.value = false
-            _userMessage.value = "Departed the crypt! Cache cleared 🚪"
+            _userMessage.value = "Vanished into thin air... 👻"
         }
     }
 
     fun clearMessage() {
+
         _userMessage.value = null
     }
 
@@ -282,13 +330,15 @@ class GhostPocketViewModel(
 
 class GhostPocketViewModelFactory(
     private val repository: GhostPocketRepository,
+    private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
     private val triggerSync: () -> Unit
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(GhostPocketViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return GhostPocketViewModel(repository, triggerSync) as T
+            return GhostPocketViewModel(repository, d1ApiClient, triggerSync) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

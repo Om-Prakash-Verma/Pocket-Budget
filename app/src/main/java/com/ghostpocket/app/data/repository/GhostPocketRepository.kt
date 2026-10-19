@@ -70,8 +70,10 @@ interface GhostPocketRepository {
     suspend fun markCategorySynced(name: String)
     suspend fun markBudgetSynced(id: String)
     suspend fun pullFromCloud(userId: String)
+    suspend fun applyD1PullResults(pullRes: com.ghostpocket.app.data.remote.D1SyncPullResponse, userId: String)
     suspend fun clearLocalCache()
 }
+
 
 data class PendingSyncPayload(
     val transactions: List<TransactionEntity>,
@@ -343,7 +345,115 @@ class GhostPocketRepositoryImpl(
         }
     }
 
+    override suspend fun applyD1PullResults(
+
+        pullRes: com.ghostpocket.app.data.remote.D1SyncPullResponse,
+        userId: String
+    ) {
+        // 1. Transactions
+        for (tx in pullRes.transactions) {
+            val local = transactionDao.getTransactionById(tx.id)
+            if (tx.isDeleted) {
+                if (local != null && local.syncStatus != SyncStatus.PENDING_UPLOAD) {
+                    transactionDao.hardDelete(tx.id)
+                }
+            } else if (local == null || (local.syncStatus == SyncStatus.SYNCED && tx.updatedAt > local.updatedAt)) {
+                val entity = TransactionEntity(
+                    id = tx.id,
+                    amountPaise = tx.amountPaise,
+                    type = try { TransactionType.valueOf(tx.type) } catch (e: Exception) { TransactionType.EXPENSE },
+                    category = tx.category,
+                    timestamp = tx.timestamp,
+                    note = tx.note,
+                    paymentMethod = tx.paymentMethod,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = tx.updatedAt
+                )
+                transactionDao.insertTransaction(entity)
+            }
+        }
+
+        // 2. Friends
+        for (f in pullRes.friends) {
+            val local = friendDao.getFriendById(f.id)
+            if (f.isDeleted) {
+                if (local != null && local.syncStatus != SyncStatus.PENDING_UPLOAD) {
+                    friendDao.hardDelete(f.id)
+                }
+            } else if (local == null || (local.syncStatus == SyncStatus.SYNCED && f.updatedAt > local.updatedAt)) {
+                val entity = FriendEntity(
+                    id = f.id,
+                    name = f.name,
+                    phone = f.phone,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = f.updatedAt
+                )
+                friendDao.insertFriend(entity)
+            }
+        }
+
+        // 3. Friend Ledgers
+        for (l in pullRes.ledgers) {
+            val local = friendLedgerDao.getPendingSyncLedgers().find { it.id == l.id }
+            if (l.isDeleted) {
+                if (local != null && local.syncStatus != SyncStatus.PENDING_UPLOAD) {
+                    friendLedgerDao.hardDelete(l.id)
+                }
+            } else {
+                val entity = FriendLedgerEntity(
+                    id = l.id,
+                    friendId = l.friendId,
+                    amountPaise = l.amountPaise,
+                    direction = try { LedgerDirection.valueOf(l.direction) } catch (e: Exception) { LedgerDirection.THEY_OWE_YOU },
+                    note = l.note,
+                    timestamp = l.timestamp,
+                    isSettled = l.isSettled,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = l.updatedAt
+                )
+                friendLedgerDao.insertLedger(entity)
+            }
+        }
+
+        // 4. Categories
+        for (cat in pullRes.categories) {
+            val local = categoryDao.getCategoryByName(cat.name)
+            if (cat.isDeleted) {
+                if (local != null && local.syncStatus != SyncStatus.PENDING_UPLOAD) {
+                    categoryDao.hardDelete(cat.name)
+                }
+            } else {
+                val entity = CategoryEntity(
+                    name = cat.name,
+                    iconKey = cat.iconKey,
+                    budgetPaise = cat.budgetPaise,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = cat.updatedAt
+                )
+                categoryDao.insertCategory(entity)
+            }
+        }
+
+        // 5. User Budget Settings
+        for (b in pullRes.budgets) {
+            budgetDao.setBudget(
+                UserBudgetEntity(
+                    id = "current_budget",
+                    budgetPaise = b.budgetPaise,
+                    syncStatus = SyncStatus.SYNCED,
+                    userId = userId,
+                    updatedAt = b.updatedAt
+                )
+            )
+        }
+    }
+
     override suspend fun clearLocalCache() {
+
         transactionDao.clearAll()
         friendDao.clearAll()
         friendLedgerDao.clearAll()
