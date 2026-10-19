@@ -83,14 +83,18 @@ class D1ApiClient(
         executePost("/api/auth/google", payload)
     }
 
-    suspend fun pushSync(request: D1SyncPushRequest): D1SyncPushResponse = withContext(Dispatchers.IO) {
+    /**
+     * UNIFIED SYNC: Pushes pending local changes and pulls latest remote updates in 1 single HTTP request.
+     * Cuts Cloudflare Worker request count by 50%.
+     */
+    suspend fun unifiedSync(request: UnifiedSyncRequest): UnifiedSyncResponse = withContext(Dispatchers.IO) {
         val token = authToken ?: currentUserId
         val jsonPayload = json.encodeToString(request)
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = jsonPayload.toRequestBody(mediaType)
 
         val req = Request.Builder()
-            .url("$baseUrl/api/sync/push")
+            .url("$baseUrl/api/sync")
             .header("Authorization", "Bearer $token")
             .post(body)
             .build()
@@ -98,37 +102,19 @@ class D1ApiClient(
         client.newCall(req).execute().use { response ->
             val resBody = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                return@withContext D1SyncPushResponse(
+                return@withContext UnifiedSyncResponse(
                     success = false,
                     error = "HTTP ${response.code}: $resBody"
                 )
             }
-            json.decodeFromString<D1SyncPushResponse>(resBody)
+            val unifiedRes = json.decodeFromString<UnifiedSyncResponse>(resBody)
+            if (unifiedRes.serverTimestamp > 0) {
+                lastSyncTimestamp = unifiedRes.serverTimestamp
+            }
+            unifiedRes
         }
     }
 
-    suspend fun pullSync(sinceTimestamp: Long = lastSyncTimestamp): D1SyncPullResponse = withContext(Dispatchers.IO) {
-        val token = authToken ?: currentUserId
-        val req = Request.Builder()
-            .url("$baseUrl/api/sync/pull?since=$sinceTimestamp")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-
-        client.newCall(req).execute().use { response ->
-            val resBody = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                return@withContext D1SyncPullResponse(
-                    error = "HTTP ${response.code}: $resBody"
-                )
-            }
-            val pullRes = json.decodeFromString<D1SyncPullResponse>(resBody)
-            if (pullRes.serverTimestamp > 0) {
-                lastSyncTimestamp = pullRes.serverTimestamp
-            }
-            pullRes
-        }
-    }
 
     private fun executePost(endpoint: String, jsonPayload: String): AuthResponse {
         val mediaType = "application/json; charset=utf-8".toMediaType()

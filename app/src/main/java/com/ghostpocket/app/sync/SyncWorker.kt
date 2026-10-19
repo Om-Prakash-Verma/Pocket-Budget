@@ -30,6 +30,20 @@ class SyncWorker(
         val d1Client = app.d1ApiClient
 
         val payload = repo.getPendingSyncItems()
+        val hasPendingChanges = payload.transactions.isNotEmpty() ||
+                payload.friends.isNotEmpty() ||
+                payload.ledgers.isNotEmpty() ||
+                payload.categories.isNotEmpty() ||
+                payload.budgets.isNotEmpty()
+
+        // -------------------------------------------------------------
+        // OPTIMIZATION 1: ONLY-WHEN-DIRTY GATE
+        // If there are 0 local edits and we synced recently, skip network completely!
+        // Prevents wasted Worker invocations on simple app opens.
+        // -------------------------------------------------------------
+        if (!hasPendingChanges && (System.currentTimeMillis() - d1Client.lastSyncTimestamp < 300_000L)) {
+            return Result.success()
+        }
 
         // Determine user identity
         val userId = if (d1Client.currentUserId.isNotBlank() && d1Client.currentUserId != "guest_user") {
@@ -42,9 +56,13 @@ class SyncWorker(
             }
         }
 
-        // 1. Try Cloudflare D1 Sync First
+        // -------------------------------------------------------------
+        // OPTIMIZATION 2: UNIFIED 2-WAY SYNC (1 HTTP REQUEST)
+        // Pushes all local changes and pulls latest cloud records together!
+        // -------------------------------------------------------------
         try {
-            val d1PushRequest = D1SyncPushRequest(
+            val unifiedRequest = UnifiedSyncRequest(
+                sinceTimestamp = d1Client.lastSyncTimestamp,
                 transactions = payload.transactions.map { tx ->
                     D1TransactionDto(
                         id = tx.id,
@@ -98,8 +116,8 @@ class SyncWorker(
                 }
             )
 
-            val pushRes = d1Client.pushSync(d1PushRequest)
-            if (pushRes.success) {
+            val unifiedRes = d1Client.unifiedSync(unifiedRequest)
+            if (unifiedRes.success) {
                 // Mark local items as SYNCED
                 payload.friends.forEach { repo.markFriendSynced(it.id) }
                 payload.ledgers.forEach { repo.markLedgerSynced(it.id) }
@@ -107,16 +125,18 @@ class SyncWorker(
                 payload.categories.forEach { repo.markCategorySynced(it.name) }
                 payload.budgets.forEach { repo.markBudgetSynced(it.id) }
 
-                // Pull latest updates from D1
-                val pullRes = d1Client.pullSync()
-                repo.applyD1PullResults(pullRes, userId)
+                // Apply piggybacked remote updates directly (no second request!)
+                unifiedRes.remoteUpdates?.let { remoteUpdates ->
+                    repo.applyD1PullResults(remoteUpdates, userId)
+                }
 
-                android.util.Log.d("GhostPocketSync", "D1 sync completed successfully for user $userId")
+                android.util.Log.d("GhostPocketSync", "Unified D1 sync complete (1 request) for user $userId")
                 return Result.success()
             }
         } catch (e: Exception) {
-            android.util.Log.w("GhostPocketSync", "D1 sync attempt had error, checking fallback: ${e.message}")
+            android.util.Log.w("GhostPocketSync", "D1 sync error: ${e.message}")
         }
+
 
         // 2. Fallback to Firebase Firestore if D1 backend is offline or unconfigured
         return try {
@@ -272,8 +292,9 @@ class SyncWorker(
     companion object {
         private const val SYNC_WORK_NAME = "ghostpocket_sync_work"
 
-        fun scheduleSync(context: Context, initialDelaySeconds: Long = 3L) {
+        fun scheduleSync(context: Context, initialDelaySeconds: Long = 6L) {
             val constraints = Constraints.Builder()
+
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 

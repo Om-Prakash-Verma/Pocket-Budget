@@ -18,8 +18,13 @@ data class AuthResponse(
     val error: String? = null
 )
 
+/**
+ * Unified 2-Way Sync Request
+ * Sends pending changes AND sinceTimestamp in a single HTTP POST request
+ */
 @Serializable
-data class D1SyncPushRequest(
+data class UnifiedSyncRequest(
+    val sinceTimestamp: Long = 0L,
     val transactions: List<D1TransactionDto> = emptyList(),
     val friends: List<D1FriendDto> = emptyList(),
     val ledgers: List<D1LedgerDto> = emptyList(),
@@ -28,9 +33,11 @@ data class D1SyncPushRequest(
 )
 
 @Serializable
-data class D1SyncPushResponse(
+data class UnifiedSyncResponse(
     val success: Boolean = false,
     val processedCount: Int = 0,
+    val serverTimestamp: Long = 0L,
+    val remoteUpdates: D1SyncPullResponse? = null,
     val error: String? = null
 )
 
