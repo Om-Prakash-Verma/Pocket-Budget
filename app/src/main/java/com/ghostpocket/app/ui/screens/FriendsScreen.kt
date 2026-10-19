@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ fun FriendsScreen(
     onAddFriendClick: () -> Unit,
     onSplitBillClick: () -> Unit,
     onFriendClick: (FriendBalance) -> Unit,
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val totalOwedToUser = remember(friends) {
@@ -41,37 +43,54 @@ fun FriendsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp)
+            contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
         ) {
-            // Header with Split Bill Action
+            // Header with Split Bill Action and Settings
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ghost Squad 👥",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Lend, borrow, and exorcise debts",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Split & Settle 👥",
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Ghost Squad",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     }
 
-                    ClayButton(
-                        text = "Split ⚔️",
-                        icon = Icons.Default.CallSplit,
-                        isSecondary = true,
-                        onClick = onSplitBillClick
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ClayButton(
+                            text = "Split ⚔️",
+                            icon = Icons.Default.CallSplit,
+                            isSecondary = true,
+                            onClick = onSplitBillClick
+                        )
+
+                        ClayIconButton(
+                            icon = Icons.Default.Settings,
+                            onClick = onSettingsClick,
+                            contentDescription = "Settings",
+                            size = 48.dp,
+                            shapeRadius = 16.dp
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             // BENTO CELL: Shared Ledger Overview

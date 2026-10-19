@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.ClayCard
+import com.ghostpocket.app.ui.components.ClayIconButton
 import com.ghostpocket.app.ui.components.EmptyStateView
 import com.ghostpocket.app.ui.components.GhostMood
 
@@ -27,6 +29,7 @@ import com.ghostpocket.app.ui.components.GhostMood
 fun ActivityScreen(
     transactions: List<TransactionEntity>,
     onTransactionClick: (TransactionEntity) -> Unit,
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -53,16 +56,41 @@ fun ActivityScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 18.dp)
-            .padding(top = 20.dp)
+            .padding(top = 12.dp)
     ) {
-        // Screen Title
-        Text(
-            text = "Activity Log 📜",
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold
-        )
+        // Screen Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Financial Spells 📜",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Activity Log",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
 
-        Spacer(modifier = Modifier.height(14.dp))
+            ClayIconButton(
+                icon = Icons.Default.Settings,
+                onClick = onSettingsClick,
+                contentDescription = "Settings",
+                size = 48.dp,
+                shapeRadius = 16.dp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Search Bar with Clay feel
         OutlinedTextField(

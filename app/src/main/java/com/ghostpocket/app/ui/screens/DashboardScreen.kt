@@ -31,6 +31,7 @@ fun DashboardScreen(
     onAddClick: () -> Unit,
     onSetBudgetClick: () -> Unit,
     onManageCategoriesClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Dynamic mood based on budget health!
@@ -57,42 +58,62 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 18.dp),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp)
+            contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
         ) {
-            // Header: Spooky Greeting + Bento Mascot Pill
+            // Header: Spooky Greeting + Bento Actions (Settings & Mascot)
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
                             text = "Boo! 👋",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "GhostPocket",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     }
 
-                    // Mascot Bento Avatar
-                    ClayCard(
-                        shapeRadius = 24.dp,
-                        elevation = 4.dp,
-                        modifier = Modifier.size(60.dp),
-                        onClick = onSetBudgetClick
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            GhostMascot(size = 46.dp, mood = ghostMood)
+                        // Tactile Clay Settings Button
+                        ClayIconButton(
+                            icon = Icons.Default.Settings,
+                            onClick = onSettingsClick,
+                            contentDescription = "Settings",
+                            size = 48.dp,
+                            shapeRadius = 16.dp
+                        )
+
+                        // Bento Mascot Avatar Card
+                        ClayCard(
+                            shapeRadius = 16.dp,
+                            elevation = 4.dp,
+                            modifier = Modifier.size(48.dp),
+                            onClick = onSetBudgetClick
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                GhostMascot(size = 36.dp, mood = ghostMood)
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             // BENTO CELL 1: Main Balance & Funny Spooky Gauge

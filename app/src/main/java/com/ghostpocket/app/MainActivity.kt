@@ -175,29 +175,6 @@ fun MainContent(viewModel: GhostPocketViewModel) {
 
 
     Scaffold(
-        topBar = {
-            if (selectedFriendBalance == null && !isSplitBillOpen && !isSettingsOpen) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "GhostPocket 👻",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    },
-                    actions = {
-                        IconButton(onClick = { isSettingsOpen = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
-                    )
-                )
-            }
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (selectedFriendBalance == null && !isSplitBillOpen && !isSettingsOpen) {
@@ -240,6 +217,7 @@ fun MainContent(viewModel: GhostPocketViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .statusBarsPadding()
         ) {
             when {
                 selectedFriendBalance != null -> {
@@ -313,14 +291,16 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                                 categorySpends = uiState.categorySpends,
                                 onAddClick = { isAddTransactionOpen = true },
                                 onSetBudgetClick = { showSetBudgetDialog = true },
-                                onManageCategoriesClick = { isSettingsOpen = true }
+                                onManageCategoriesClick = { isSettingsOpen = true },
+                                onSettingsClick = { isSettingsOpen = true }
                             )
                         }
 
                         Screen.ACTIVITY -> {
                             ActivityScreen(
                                 transactions = uiState.allTransactions,
-                                onTransactionClick = { /* Detail action */ }
+                                onTransactionClick = { /* Detail action */ },
+                                onSettingsClick = { isSettingsOpen = true }
                             )
                         }
 
@@ -329,7 +309,8 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                                 friends = uiState.friends,
                                 onAddFriendClick = { showAddFriendDialog = true },
                                 onSplitBillClick = { isSplitBillOpen = true },
-                                onFriendClick = { balance -> selectedFriendBalance = balance }
+                                onFriendClick = { balance -> selectedFriendBalance = balance },
+                                onSettingsClick = { isSettingsOpen = true }
                             )
                         }
 
@@ -337,7 +318,8 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                             InsightsScreen(
                                 summary = uiState.summary,
                                 categorySpends = uiState.categorySpends,
-                                recentTransactions = uiState.recentTransactions
+                                recentTransactions = uiState.recentTransactions,
+                                onSettingsClick = { isSettingsOpen = true }
                             )
                         }
                     }

@@ -2,8 +2,11 @@ package com.ghostpocket.app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,26 +22,48 @@ fun InsightsScreen(
     summary: MonthlySummary,
     categorySpends: List<CategorySpend>,
     recentTransactions: List<TransactionEntity>,
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 100.dp)
+        contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
     ) {
         item {
-            Text(
-                text = "Spooky Insights 🔮",
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Where did all the coins vanish?",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Financial Alchemy 🔮",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Spooky Insights",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                ClayIconButton(
+                    icon = Icons.Default.Settings,
+                    onClick = onSettingsClick,
+                    contentDescription = "Settings",
+                    size = 48.dp,
+                    shapeRadius = 16.dp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // BENTO CELL: Category Breakdown

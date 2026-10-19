@@ -155,3 +155,69 @@ fun ClayButton(
         }
     }
 }
+
+/**
+ * Tactile Clay Icon Button for compact header and action controls
+ */
+@Composable
+fun ClayIconButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    size: Dp = 48.dp,
+    shapeRadius: Dp = 16.dp,
+    elevation: Dp = 4.dp
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val shape = RoundedCornerShape(shapeRadius)
+    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
+
+    val bgBrush = if (isDark) {
+        Brush.verticalGradient(
+            listOf(
+                Color(0xFF24242B),
+                Color(0xFF19191E)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(
+                Color(0xFFFFFFFF),
+                Color(0xFFF1F1F6)
+            )
+        )
+    }
+
+    val topBorderColor = if (isDark) Color(0xFF383844) else Color(0xFFFFFFFF)
+    val shadowColor = if (isDark) Color(0x77000000) else Color(0x1F000000)
+    val iconColor = if (isDark) Color(0xFFEDEDED) else Color(0xFF1D1D22)
+    val currentElevation = if (isPressed) 1.dp else elevation
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .shadow(
+                elevation = currentElevation,
+                shape = shape,
+                ambientColor = shadowColor,
+                spotColor = shadowColor
+            )
+            .clip(shape)
+            .background(bgBrush)
+            .border(1.5.dp, topBorderColor.copy(alpha = if (isDark) 0.35f else 0.8f), shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
