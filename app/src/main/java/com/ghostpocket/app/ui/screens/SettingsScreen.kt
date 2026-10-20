@@ -1,6 +1,7 @@
 package com.ghostpocket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.ui.components.CategoryIcon
 import com.ghostpocket.app.ui.components.ClayButton
 import com.ghostpocket.app.ui.components.ClayCard
+import com.ghostpocket.app.util.AppThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +31,8 @@ fun SettingsScreen(
     categories: List<CategoryEntity>,
     currentBudgetPaise: Long,
     isSyncing: Boolean,
+    currentThemeMode: AppThemeMode = AppThemeMode.DARK,
+    onThemeChange: (AppThemeMode) -> Unit = {},
     onBack: () -> Unit,
     onManualSync: () -> Unit,
     onSetBudget: () -> Unit,
@@ -193,6 +197,66 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // BENTO CELL: Spooky Appearance & Theme
+            item {
+                ClayCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shapeRadius = 24.dp,
+                    elevation = 6.dp
+                ) {
+                    Text(
+                        text = "Spooky Appearance 🌓",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Choose your preferred vibe: Crisp Light or Deep Obsidian Dark.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(4.dp)
+                    ) {
+                        listOf(
+                            AppThemeMode.LIGHT to "Light ☀️",
+                            AppThemeMode.DARK to "Dark 🌙",
+                            AppThemeMode.SYSTEM to "System ⚡"
+                        ).forEach { (mode, label) ->
+                            val isSelected = currentThemeMode == mode
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                    .clickable { onThemeChange(mode) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

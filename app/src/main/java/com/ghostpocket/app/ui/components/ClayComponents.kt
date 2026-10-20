@@ -48,8 +48,8 @@ fun ClayCard(
     val clayGradient = if (isDark) {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF24242B),
-                Color(0xFF19191E)
+                Color(0xFF16161D),
+                Color(0xFF101014)
             )
         )
     } else {
@@ -61,8 +61,8 @@ fun ClayCard(
         )
     }
 
-    val topBorderColor = if (isDark) Color(0xFF383844) else Color(0xFFFFFFFF)
-    val shadowColor = if (isDark) Color(0x77000000) else Color(0x1F000000)
+    val topBorderColor = if (isDark) Color(0xFF2C2C38) else Color(0xFFFFFFFF)
+    val shadowColor = if (isDark) Color(0xA6000000) else Color(0x1F000000)
 
     Box(
         modifier = modifier
@@ -101,31 +101,33 @@ fun ClayButton(
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
     val bgBrush = when {
-        !enabled -> Brush.verticalGradient(listOf(Color(0xFF888888), Color(0xFF666666)))
+        !enabled -> Brush.verticalGradient(listOf(Color(0xFF555562), Color(0xFF3F3F4A)))
         isSecondary -> {
-            if (isDark) Brush.verticalGradient(listOf(Color(0xFF2C2C35), Color(0xFF1E1E24)))
+            if (isDark) Brush.verticalGradient(listOf(Color(0xFF1D1D25), Color(0xFF131318)))
             else Brush.verticalGradient(listOf(Color(0xFFF0F0F5), Color(0xFFE4E4EB)))
         }
         else -> {
             // Primary high-contrast clay button
-            if (isDark) Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE2E2E8)))
+            if (isDark) Brush.verticalGradient(listOf(Color(0xFFF7F7FA), Color(0xFFDFDFE8)))
             else Brush.verticalGradient(listOf(Color(0xFF1F1F24), Color(0xFF0F0F12)))
         }
     }
 
     val textColor = when {
-        !enabled -> Color(0xFFAAAAAA)
-        isSecondary -> if (isDark) Color(0xFFEAEAEA) else Color(0xFF1A1A1E)
-        else -> if (isDark) Color(0xFF111113) else Color(0xFFFFFFFF)
+        !enabled -> Color(0xFF888894)
+        isSecondary -> if (isDark) Color(0xFFEDEDF2) else Color(0xFF1A1A1E)
+        else -> if (isDark) Color(0xFF0C0C0E) else Color(0xFFFFFFFF)
     }
 
     val elevation = if (isPressed) 1.dp else 4.dp
+    val buttonBorder = if (isDark && isSecondary) Color(0xFF2C2C38) else if (!isDark && isSecondary) Color(0xFFE0E0E6) else Color.Transparent
 
     Box(
         modifier = modifier
             .shadow(elevation, shape)
             .clip(shape)
             .background(bgBrush)
+            .border(1.dp, buttonBorder, shape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -177,8 +179,8 @@ fun ClayIconButton(
     val bgBrush = if (isDark) {
         Brush.verticalGradient(
             listOf(
-                Color(0xFF24242B),
-                Color(0xFF19191E)
+                Color(0xFF181820),
+                Color(0xFF111116)
             )
         )
     } else {
@@ -190,9 +192,9 @@ fun ClayIconButton(
         )
     }
 
-    val topBorderColor = if (isDark) Color(0xFF383844) else Color(0xFFFFFFFF)
-    val shadowColor = if (isDark) Color(0x77000000) else Color(0x1F000000)
-    val iconColor = if (isDark) Color(0xFFEDEDED) else Color(0xFF1D1D22)
+    val topBorderColor = if (isDark) Color(0xFF2C2C38) else Color(0xFFFFFFFF)
+    val shadowColor = if (isDark) Color(0xA6000000) else Color(0x1F000000)
+    val iconColor = if (isDark) Color(0xFFF5F5F8) else Color(0xFF1D1D22)
     val currentElevation = if (isPressed) 1.dp else elevation
 
     Box(

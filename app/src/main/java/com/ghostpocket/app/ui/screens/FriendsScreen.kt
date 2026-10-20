@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +31,8 @@ fun FriendsScreen(
     onSplitBillClick: () -> Unit,
     onFriendClick: (FriendBalance) -> Unit,
     onSettingsClick: () -> Unit = {},
+    onToggleTheme: () -> Unit = {},
+    isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val totalOwedToUser = remember(friends) {
@@ -70,7 +74,7 @@ fun FriendsScreen(
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         ClayButton(
@@ -81,11 +85,19 @@ fun FriendsScreen(
                         )
 
                         ClayIconButton(
+                            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            onClick = onToggleTheme,
+                            contentDescription = if (isDarkTheme) "Switch to Light Theme" else "Switch to Dark Theme",
+                            size = 46.dp,
+                            shapeRadius = 15.dp
+                        )
+
+                        ClayIconButton(
                             icon = Icons.Default.Settings,
                             onClick = onSettingsClick,
                             contentDescription = "Settings",
-                            size = 48.dp,
-                            shapeRadius = 16.dp
+                            size = 46.dp,
+                            shapeRadius = 15.dp
                         )
                     }
                 }

@@ -13,12 +13,12 @@ import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     primary = PureWhite,
-    onPrimary = DeepCharcoal,
+    onPrimary = ObsidianBlack,
     primaryContainer = SurfaceDarkHover,
     onPrimaryContainer = TextPrimaryDark,
     secondary = TextSecondaryDark,
-    onSecondary = DeepCharcoal,
-    background = DeepCharcoal,
+    onSecondary = ObsidianBlack,
+    background = ObsidianBlack,
     onBackground = TextPrimaryDark,
     surface = SurfaceDark,
     onSurface = TextPrimaryDark,

@@ -28,6 +28,8 @@ import com.ghostpocket.app.ui.components.GhostMood
 import com.ghostpocket.app.ui.screens.*
 
 import com.ghostpocket.app.ui.theme.GhostPocketTheme
+import com.ghostpocket.app.util.AppThemeMode
+import com.ghostpocket.app.util.ThemePreferences
 import com.ghostpocket.app.viewmodel.GhostPocketViewModel
 import com.ghostpocket.app.viewmodel.GhostPocketViewModelFactory
 
@@ -51,8 +53,32 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            GhostPocketTheme {
-                MainContent(viewModel = viewModel)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val systemInDark = androidx.compose.foundation.isSystemInDarkTheme()
+            var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
+            val isDarkTheme = remember(themeMode, systemInDark) {
+                when (themeMode) {
+                    AppThemeMode.LIGHT -> false
+                    AppThemeMode.DARK -> true
+                    AppThemeMode.SYSTEM -> systemInDark
+                }
+            }
+
+            GhostPocketTheme(darkTheme = isDarkTheme) {
+                MainContent(
+                    viewModel = viewModel,
+                    currentThemeMode = themeMode,
+                    isDarkTheme = isDarkTheme,
+                    onThemeChange = { mode ->
+                        ThemePreferences.setThemeMode(context, mode)
+                        themeMode = mode
+                    },
+                    onToggleTheme = {
+                        val next = if (isDarkTheme) AppThemeMode.LIGHT else AppThemeMode.DARK
+                        ThemePreferences.setThemeMode(context, next)
+                        themeMode = next
+                    }
+                )
             }
         }
     }
@@ -60,7 +86,13 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainContent(viewModel: GhostPocketViewModel) {
+fun MainContent(
+    viewModel: GhostPocketViewModel,
+    currentThemeMode: AppThemeMode = AppThemeMode.DARK,
+    isDarkTheme: Boolean = true,
+    onThemeChange: (AppThemeMode) -> Unit = {},
+    onToggleTheme: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
 
@@ -243,6 +275,8 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                         categories = uiState.categories,
                         currentBudgetPaise = uiState.summary.initialBudgetPaise,
                         isSyncing = uiState.isSyncing,
+                        currentThemeMode = currentThemeMode,
+                        onThemeChange = onThemeChange,
                         onBack = { isSettingsOpen = false },
                         onManualSync = { viewModel.manualSync() },
                         onSetBudget = { showSetBudgetDialog = true },
@@ -264,7 +298,9 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                                 onAddClick = { isAddTransactionOpen = true },
                                 onSetBudgetClick = { showSetBudgetDialog = true },
                                 onManageCategoriesClick = { isSettingsOpen = true },
-                                onSettingsClick = { isSettingsOpen = true }
+                                onSettingsClick = { isSettingsOpen = true },
+                                onToggleTheme = onToggleTheme,
+                                isDarkTheme = isDarkTheme
                             )
                         }
 
@@ -272,7 +308,9 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                             ActivityScreen(
                                 transactions = uiState.allTransactions,
                                 onTransactionClick = { /* Detail action */ },
-                                onSettingsClick = { isSettingsOpen = true }
+                                onSettingsClick = { isSettingsOpen = true },
+                                onToggleTheme = onToggleTheme,
+                                isDarkTheme = isDarkTheme
                             )
                         }
 
@@ -282,7 +320,9 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                                 onAddFriendClick = { showAddFriendDialog = true },
                                 onSplitBillClick = { isSplitBillOpen = true },
                                 onFriendClick = { balance -> selectedFriendBalance = balance },
-                                onSettingsClick = { isSettingsOpen = true }
+                                onSettingsClick = { isSettingsOpen = true },
+                                onToggleTheme = onToggleTheme,
+                                isDarkTheme = isDarkTheme
                             )
                         }
 
@@ -291,7 +331,9 @@ fun MainContent(viewModel: GhostPocketViewModel) {
                                 summary = uiState.summary,
                                 categorySpends = uiState.categorySpends,
                                 recentTransactions = uiState.recentTransactions,
-                                onSettingsClick = { isSettingsOpen = true }
+                                onSettingsClick = { isSettingsOpen = true },
+                                onToggleTheme = onToggleTheme,
+                                isDarkTheme = isDarkTheme
                             )
                         }
                     }

@@ -3,6 +3,8 @@ package com.ghostpocket.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +25,8 @@ fun InsightsScreen(
     categorySpends: List<CategorySpend>,
     recentTransactions: List<TransactionEntity>,
     onSettingsClick: () -> Unit = {},
+    onToggleTheme: () -> Unit = {},
+    isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -54,13 +58,26 @@ fun InsightsScreen(
                     )
                 }
 
-                ClayIconButton(
-                    icon = Icons.Default.Settings,
-                    onClick = onSettingsClick,
-                    contentDescription = "Settings",
-                    size = 48.dp,
-                    shapeRadius = 16.dp
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ClayIconButton(
+                        icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        onClick = onToggleTheme,
+                        contentDescription = if (isDarkTheme) "Switch to Light Theme" else "Switch to Dark Theme",
+                        size = 46.dp,
+                        shapeRadius = 15.dp
+                    )
+
+                    ClayIconButton(
+                        icon = Icons.Default.Settings,
+                        onClick = onSettingsClick,
+                        contentDescription = "Settings",
+                        size = 46.dp,
+                        shapeRadius = 15.dp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

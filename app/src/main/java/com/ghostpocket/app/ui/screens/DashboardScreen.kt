@@ -32,6 +32,8 @@ fun DashboardScreen(
     onSetBudgetClick: () -> Unit,
     onManageCategoriesClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onToggleTheme: () -> Unit = {},
+    isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // Dynamic mood based on budget health!
@@ -87,27 +89,36 @@ fun DashboardScreen(
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Quick Theme Toggle Button (☀️ / 🌙)
+                        ClayIconButton(
+                            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            onClick = onToggleTheme,
+                            contentDescription = if (isDarkTheme) "Switch to Light Theme" else "Switch to Dark Theme",
+                            size = 46.dp,
+                            shapeRadius = 15.dp
+                        )
+
                         // Tactile Clay Settings Button
                         ClayIconButton(
                             icon = Icons.Default.Settings,
                             onClick = onSettingsClick,
                             contentDescription = "Settings",
-                            size = 48.dp,
-                            shapeRadius = 16.dp
+                            size = 46.dp,
+                            shapeRadius = 15.dp
                         )
 
                         // Bento Mascot Avatar Card
                         ClayCard(
                             shapeRadius = 16.dp,
                             elevation = 4.dp,
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier.size(46.dp),
                             onClick = onSetBudgetClick
                         ) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                GhostMascot(size = 36.dp, mood = ghostMood)
+                                GhostMascot(size = 34.dp, mood = ghostMood)
                             }
                         }
                     }
