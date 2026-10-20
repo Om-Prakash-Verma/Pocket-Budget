@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.CategorySpend
 import com.ghostpocket.app.model.MonthlySummary
 import com.ghostpocket.app.model.MoneyUtils
+import com.ghostpocket.app.model.SelectedMonth
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.*
 
@@ -28,6 +29,10 @@ import com.ghostpocket.app.ui.components.*
 fun DashboardScreen(
     summary: MonthlySummary,
     categorySpends: List<CategorySpend>,
+    selectedMonth: SelectedMonth = SelectedMonth.current(),
+    onPreviousMonth: () -> Unit = {},
+    onNextMonth: () -> Unit = {},
+    onCurrentMonth: () -> Unit = {},
     onAddClick: () -> Unit,
     onSetBudgetClick: () -> Unit,
     onManageCategoriesClick: () -> Unit = {},
@@ -125,6 +130,78 @@ fun DashboardScreen(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Bento Month Selector Pill Bar
+            item {
+                ClayCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    shapeRadius = 18.dp,
+                    elevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onPreviousMonth,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Previous Month",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onCurrentMonth() }
+                                .padding(horizontal = 12.dp, vertical = 2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = selectedMonth.label,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "📅", fontSize = 14.sp)
+                            }
+                            if (selectedMonth.isCurrentMonth) {
+                                Text(
+                                    text = "Current Month",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(
+                                    text = "Tap to jump to Current",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onNextMonth,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Next Month",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
 
             // BENTO CELL 1: Main Balance & Funny Spooky Gauge

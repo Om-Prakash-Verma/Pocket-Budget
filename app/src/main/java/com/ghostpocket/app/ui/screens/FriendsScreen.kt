@@ -1,16 +1,20 @@
 package com.ghostpocket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,11 +39,37 @@ fun FriendsScreen(
     isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("ALL") } // "ALL", "OWES_YOU", "YOU_OWE", "SETTLED"
+    var sortOption by remember { mutableStateOf("DEBT") } // "DEBT", "NAME"
+
     val totalOwedToUser = remember(friends) {
         friends.filter { it.netPaise > 0 }.sumOf { it.netPaise }
     }
     val totalUserOwes = remember(friends) {
         friends.filter { it.netPaise < 0 }.sumOf { kotlin.math.abs(it.netPaise) }
+    }
+
+    val filteredFriends = remember(friends, searchQuery, selectedFilter, sortOption) {
+        friends.filter { item ->
+            val matchesQuery = searchQuery.isBlank() ||
+                    item.friend.name.contains(searchQuery, ignoreCase = true) ||
+                    (item.friend.phone?.contains(searchQuery, ignoreCase = true) == true)
+
+            val matchesFilter = when (selectedFilter) {
+                "OWES_YOU" -> item.netPaise > 0L
+                "YOU_OWE" -> item.netPaise < 0L
+                "SETTLED" -> item.netPaise == 0L
+                else -> true
+            }
+
+            matchesQuery && matchesFilter
+        }.let { list ->
+            when (sortOption) {
+                "NAME" -> list.sortedBy { it.friend.name.lowercase() }
+                else -> list.sortedByDescending { kotlin.math.abs(it.netPaise) }
+            }
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -148,24 +178,110 @@ fun FriendsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // Search Bar & Filter Pills
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search mortal by name or number...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Filter / Sort Bento Pills
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    item {
+                        ClaySquadFilterPill(
+                            label = "All Squad (${friends.size})",
+                            isSelected = selectedFilter == "ALL",
+                            onClick = { selectedFilter = "ALL" }
+                        )
+                    }
+                    item {
+                        ClaySquadFilterPill(
+                            label = "Owes You 🪙",
+                            isSelected = selectedFilter == "OWES_YOU",
+                            onClick = { selectedFilter = "OWES_YOU" }
+                        )
+                    }
+                    item {
+                        ClaySquadFilterPill(
+                            label = "You Owe 💸",
+                            isSelected = selectedFilter == "YOU_OWE",
+                            onClick = { selectedFilter = "YOU_OWE" }
+                        )
+                    }
+                    item {
+                        ClaySquadFilterPill(
+                            label = "Settled ✨",
+                            isSelected = selectedFilter == "SETTLED",
+                            onClick = { selectedFilter = "SETTLED" }
+                        )
+                    }
+                    item {
+                        ClaySquadFilterPill(
+                            label = if (sortOption == "NAME") "Sort: A-Z 🔤" else "Sort: Highest Debt 💰",
+                            isSelected = true,
+                            onClick = {
+                                sortOption = if (sortOption == "DEBT") "NAME" else "DEBT"
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
             }
 
             // Friends Bento List
-            if (friends.isEmpty()) {
+            if (filteredFriends.isEmpty()) {
                 item {
                     ClayCard(
                         modifier = Modifier.fillMaxWidth(),
                         shapeRadius = 22.dp
                     ) {
                         EmptyStateView(
-                            message = "No mortals summoned yet! Add a friend to start tracking debts 👻",
+                            message = if (searchQuery.isNotBlank() || selectedFilter != "ALL") {
+                                "No mortals match your search incantation! 🧙‍♂️"
+                            } else {
+                                "No mortals summoned yet! Add a friend to start tracking debts 👻"
+                            },
                             mood = GhostMood.WAVING
                         )
                     }
                 }
             } else {
-                items(friends) { balance ->
+                items(filteredFriends) { balance ->
                     BentoFriendRow(
                         balance = balance,
                         onClick = { onFriendClick(balance) }
@@ -251,5 +367,28 @@ fun BentoFriendRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+private fun ClaySquadFilterPill(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

@@ -17,6 +17,7 @@ data class GhostPocketUiState(
     val categories: List<CategoryEntity> = emptyList(),
     val categorySpends: List<CategorySpend> = emptyList(),
     val userBudget: UserBudgetEntity? = null,
+    val selectedMonth: SelectedMonth = SelectedMonth.current(),
     val isSyncing: Boolean = false,
     val isInitialDataFetching: Boolean = false,
     val userMessage: String? = null,
@@ -30,6 +31,21 @@ class GhostPocketViewModel(
     private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
     private val triggerSync: () -> Unit
 ) : ViewModel() {
+
+    private val _selectedMonth = MutableStateFlow(SelectedMonth.current())
+    val selectedMonth: StateFlow<SelectedMonth> = _selectedMonth.asStateFlow()
+
+    fun selectPreviousMonth() {
+        _selectedMonth.value = _selectedMonth.value.previous()
+    }
+
+    fun selectNextMonth() {
+        _selectedMonth.value = _selectedMonth.value.next()
+    }
+
+    fun selectCurrentMonth() {
+        _selectedMonth.value = SelectedMonth.current()
+    }
 
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _isSyncing = MutableStateFlow(false)
@@ -45,26 +61,62 @@ class GhostPocketViewModel(
         }
     )
 
-
     val uiState: StateFlow<GhostPocketUiState> = combine(
-        repository.monthlySummary,
         repository.allTransactions,
         repository.allFriendsWithBalances,
         repository.allFriends,
         repository.allCategories
-    ) { summary, allTxs, friends, rawFriends, categories ->
+    ) { allTxs, friends, rawFriends, categories ->
         GhostPocketUiState(
-            summary = summary,
-            recentTransactions = allTxs,
             allTransactions = allTxs,
             friends = friends,
             rawFriends = rawFriends,
             categories = categories
         )
-    }.combine(repository.categorySpendsCurrentMonth) { state, spends ->
-        state.copy(categorySpends = spends)
     }.combine(repository.userBudget) { state, budget ->
         state.copy(userBudget = budget)
+    }.combine(_selectedMonth) { state, month ->
+        val allTxs = state.allTransactions
+        val categories = state.categories
+        val budgetEntity = state.userBudget
+
+        val (start, end) = month.timeRange()
+        val monthTxs = allTxs.filter { it.timestamp in start..end }
+        val income = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
+        val expense = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
+        val summary = MonthlySummary(
+            totalIncomePaise = income,
+            totalExpensePaise = expense,
+            initialBudgetPaise = budgetEntity?.budgetPaise ?: 0L
+        )
+
+        val monthExpenses = monthTxs.filter { it.type == TransactionType.EXPENSE }
+        val totalExpense = monthExpenses.sumOf { it.amountPaise }
+        val catBudgetMap = categories.associate { it.name to it.budgetPaise }
+        val groupMap = monthExpenses.groupBy { it.category }
+        val allCatNames = (categories.map { it.name } + groupMap.keys).distinct()
+        val categorySpends = if (categories.isEmpty() && totalExpense <= 0L) {
+            emptyList()
+        } else {
+            allCatNames.map { cat ->
+                val catTotal = groupMap[cat]?.sumOf { it.amountPaise } ?: 0L
+                val allocated = catBudgetMap[cat] ?: 0L
+                val pct = if (totalExpense > 0L) catTotal.toFloat() / totalExpense.toFloat() else 0f
+                CategorySpend(
+                    category = cat,
+                    totalPaise = catTotal,
+                    percentage = pct,
+                    allocatedBudgetPaise = allocated
+                )
+            }.sortedByDescending { it.totalPaise }
+        }
+
+        state.copy(
+            summary = summary,
+            recentTransactions = monthTxs,
+            categorySpends = categorySpends,
+            selectedMonth = month
+        )
     }.combine(_isSyncing) { state, syncing ->
         state.copy(isSyncing = syncing)
     }.combine(_userMessage) { state, msg ->
@@ -304,7 +356,6 @@ class GhostPocketViewModel(
             )
             repository.addTransaction(tx)
             _userMessage.value = if (type == TransactionType.EXPENSE) "Money vanished! 💸👻" else "Pocket fed! 🪙✨"
-            triggerSync()
         }
     }
 
@@ -312,7 +363,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.updateTransaction(transaction)
             _userMessage.value = "Spell altered in the crypt! 🪄"
-            triggerSync()
         }
     }
 
@@ -320,7 +370,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteTransaction(id)
             _userMessage.value = "Banished into the void! 🪄"
-            triggerSync()
         }
     }
 
@@ -328,7 +377,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.addFriend(name, phone)
             _userMessage.value = "New mortal summoned! 👥👻"
-            triggerSync()
         }
     }
 
@@ -336,7 +384,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.updateFriend(friend)
             _userMessage.value = "Mortal's scroll updated! 👥✨"
-            triggerSync()
         }
     }
 
@@ -344,7 +391,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteFriend(id)
             _userMessage.value = "Mortal departed! 💨"
-            triggerSync()
         }
     }
 
@@ -352,7 +398,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteFriendSafe(id, settleRemaining)
             _userMessage.value = if (settleRemaining) "All debts settled & mortal removed! 💨" else "Mortal departed! 💨"
-            triggerSync()
         }
     }
 
@@ -360,7 +405,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.addLedgerEntry(friendId, amountPaise, direction, note)
             _userMessage.value = if (direction == LedgerDirection.THEY_OWE_YOU) "Debt spell cast! 📜✨" else "You owe them gold! 🪙"
-            triggerSync()
         }
     }
 
@@ -368,7 +412,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.updateLedgerEntry(ledger)
             _userMessage.value = "Debt ledger updated! 📜✨"
-            triggerSync()
         }
     }
 
@@ -376,7 +419,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteLedgerEntry(id)
             _userMessage.value = "Ledger entry banished! 💨"
-            triggerSync()
         }
     }
 
@@ -384,7 +426,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.recordRepayment(friendId, amountPaise, isRepayingToUser)
             _userMessage.value = "Debt exorcised! Finally! ✓"
-            triggerSync()
         }
     }
 
@@ -392,7 +433,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.settleFriendLedger(friendId)
             _userMessage.value = "All debts vanished! Clean slate! 👻✨"
-            triggerSync()
         }
     }
 
@@ -400,7 +440,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.splitBill(title, totalPaise, payerFriendId, participantFriendIds, category)
             _userMessage.value = "Bill sliced into pieces! ⚔️👻"
-            triggerSync()
         }
     }
 

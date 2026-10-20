@@ -2,6 +2,7 @@ package com.ghostpocket.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -52,6 +53,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val app = application as GhostPocketApp
+        val userId = app.d1ApiClient?.currentUserId ?: "guest_user"
+        SyncWorker.scheduleDailyPeriodicSync(applicationContext, userId)
+
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
             val systemInDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -118,6 +123,37 @@ fun MainContent(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? ComponentActivity
+
+    // System Back Handler: Prevents accidental app closing and cleanly navigates back
+    BackHandler(enabled = true) {
+        when {
+            transactionToEdit != null -> transactionToEdit = null
+            isAddTransactionOpen -> isAddTransactionOpen = false
+            showAddCategoryDialog -> showAddCategoryDialog = false
+            showSetBudgetDialog -> showSetBudgetDialog = false
+            showAddFriendDialog -> showAddFriendDialog = false
+            selectedFriendBalance != null -> selectedFriendBalance = null
+            isSplitBillOpen -> isSplitBillOpen = false
+            isSettingsOpen -> isSettingsOpen = false
+            currentScreen != Screen.HOME -> currentScreen = Screen.HOME
+            else -> activity?.finish()
+        }
+    }
+
+    // App Background Sync Observer: Syncs pending changes cleanly when user leaves/minimizes app
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                SyncWorker.scheduleOnAppBackground(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     if (!uiState.isAuthenticated) {
         AuthScreen(
@@ -306,6 +342,10 @@ fun MainContent(
                             DashboardScreen(
                                 summary = uiState.summary,
                                 categorySpends = uiState.categorySpends,
+                                selectedMonth = uiState.selectedMonth,
+                                onPreviousMonth = { viewModel.selectPreviousMonth() },
+                                onNextMonth = { viewModel.selectNextMonth() },
+                                onCurrentMonth = { viewModel.selectCurrentMonth() },
                                 onAddClick = { isAddTransactionOpen = true },
                                 onSetBudgetClick = { showSetBudgetDialog = true },
                                 onManageCategoriesClick = { isSettingsOpen = true },

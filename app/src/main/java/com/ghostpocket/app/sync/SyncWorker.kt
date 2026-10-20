@@ -291,21 +291,76 @@ class SyncWorker(
 
     companion object {
         private const val SYNC_WORK_NAME = "ghostpocket_sync_work"
+        private const val DAILY_SYNC_WORK_NAME = "ghostpocket_daily_periodic_sync"
 
-        fun scheduleSync(context: Context, initialDelaySeconds: Long = 6L) {
+        /**
+         * Manual or immediate sync (e.g. from Settings "Sync Now" button or login)
+         */
+        fun scheduleImmediateSync(context: Context) {
             val constraints = Constraints.Builder()
-
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
             val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setConstraints(constraints)
-                .setInitialDelay(initialDelaySeconds, TimeUnit.SECONDS)
-                .setBackoffCriteria(
-                    BackoffPolicy.EXPONENTIAL,
-                    15,
-                    TimeUnit.SECONDS
-                )
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                SYNC_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                syncRequest
+            )
+        }
+
+        /**
+         * Legacy scheduleSync for backward compatibility
+         */
+        fun scheduleSync(context: Context, initialDelaySeconds: Long = 10L) {
+            scheduleOnAppBackground(context)
+        }
+
+        /**
+         * WhatsApp-style Daily Periodic Sync with Jitter.
+         * Runs once per 24 hours in a 4-hour flex window with per-user jitter to prevent
+         * the Thundering Herd Problem on Cloudflare D1.
+         */
+        fun scheduleDailyPeriodicSync(context: Context, userId: String) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiresBatteryNotLow(true)
+                .build()
+
+            // Jitter: Spread requests evenly across 180 minutes (3 hours)
+            val jitterMinutes = (Math.abs(userId.hashCode()) % 180).toLong()
+
+            val periodicRequest = PeriodicWorkRequestBuilder<SyncWorker>(
+                repeatInterval = 24, TimeUnit.HOURS,
+                flexTimeInterval = 4, TimeUnit.HOURS
+            )
+                .setConstraints(constraints)
+                .setInitialDelay(jitterMinutes, TimeUnit.MINUTES)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                DAILY_SYNC_WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                periodicRequest
+            )
+        }
+
+        /**
+         * Fires when the user leaves or minimizes the app, bundling all recent edits
+         * into a single lightweight background sync.
+         */
+        fun scheduleOnAppBackground(context: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .setInitialDelay(3, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
