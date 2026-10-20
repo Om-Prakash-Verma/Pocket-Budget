@@ -29,6 +29,9 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun hardDelete(id: String)
 
+    @Query("UPDATE transactions SET category = :newCategory WHERE category = :oldCategory")
+    suspend fun reassignCategory(oldCategory: String, newCategory: String)
+
     @Query("SELECT * FROM transactions WHERE syncStatus IN ('PENDING_UPLOAD', 'PENDING_DELETE')")
     suspend fun getPendingSyncTransactions(): List<TransactionEntity>
 
@@ -74,6 +77,9 @@ interface FriendLedgerDao {
     @Query("SELECT * FROM friend_ledgers WHERE syncStatus != 'PENDING_DELETE' ORDER BY timestamp DESC")
     fun getAllLedgerEntries(): Flow<List<FriendLedgerEntity>>
 
+    @Query("SELECT * FROM friend_ledgers WHERE id = :id LIMIT 1")
+    suspend fun getLedgerById(id: String): FriendLedgerEntity?
+
     @Query("SELECT * FROM friend_ledgers WHERE friendId = :friendId AND syncStatus != 'PENDING_DELETE' ORDER BY timestamp DESC")
     fun getLedgerEntriesForFriend(friendId: String): Flow<List<FriendLedgerEntity>>
 
@@ -112,6 +118,9 @@ interface CategoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: CategoryEntity)
+
+    @Query("UPDATE categories SET budgetPaise = :budgetPaise, syncStatus = 'PENDING_UPLOAD', updatedAt = :now WHERE name = :name")
+    suspend fun updateBudget(name: String, budgetPaise: Long, now: Long = System.currentTimeMillis())
 
     @Query("UPDATE categories SET syncStatus = 'PENDING_DELETE', updatedAt = :now WHERE name = :name")
     suspend fun markForDeletion(name: String, now: Long = System.currentTimeMillis())

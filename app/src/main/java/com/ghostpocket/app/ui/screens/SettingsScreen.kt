@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,11 +38,14 @@ fun SettingsScreen(
     onManualSync: () -> Unit,
     onSetBudget: () -> Unit,
     onAddCategory: (name: String, budgetPaise: Long) -> Unit,
+    onEditCategory: (oldName: String, newName: String, budgetPaise: Long) -> Unit = { _, _, _ -> },
     onDeleteCategory: (CategoryEntity) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var categoryToEdit by remember { mutableStateOf<CategoryEntity?>(null) }
+    var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -186,14 +190,26 @@ fun SettingsScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
-                                        onClick = { onDeleteCategory(cat) },
+                                        onClick = { categoryToEdit = cat },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Category",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { categoryToDelete = cat },
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
+                                            contentDescription = "Delete Category",
                                             modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = MaterialTheme.colorScheme.error
                                         )
                                     }
                                 }
@@ -393,6 +409,93 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showAddCategoryDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Edit Category Dialog
+    categoryToEdit?.let { cat ->
+        var editName by remember(cat) { mutableStateOf(cat.name) }
+        var editBudget by remember(cat) {
+            mutableStateOf(if (cat.budgetPaise > 0L) (cat.budgetPaise / 100).toString() else "")
+        }
+
+        AlertDialog(
+            onDismissRequest = { categoryToEdit = null },
+            title = { Text("Edit Realm 🏷️") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Category Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = editBudget,
+                        onValueChange = { input ->
+                            if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                                editBudget = input
+                            }
+                        },
+                        label = { Text("Allocated Budget ₹ (Optional)") },
+                        placeholder = { Text("e.g. 2000") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank()) {
+                            val budgetPaise = MoneyUtils.parseToPaise(editBudget) ?: 0L
+                            onEditCategory(cat.name, editName.trim(), budgetPaise)
+                            categoryToEdit = null
+                        }
+                    },
+                    enabled = editName.isNotBlank()
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Confirm Delete Category Dialog
+    categoryToDelete?.let { cat ->
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = { Text("Banish Realm: ${cat.name}? ⚠️") },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete '${cat.name}'? Any transactions belonging to this realm will be preserved and safely reassigned to 'Other'."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteCategory(cat)
+                        categoryToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Banish Realm", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
+                    Text("Keep Realm")
                 }
             }
         )

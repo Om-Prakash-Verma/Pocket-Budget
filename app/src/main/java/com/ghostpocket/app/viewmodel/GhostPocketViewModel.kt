@@ -308,6 +308,14 @@ class GhostPocketViewModel(
         }
     }
 
+    fun editTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.updateTransaction(transaction)
+            _userMessage.value = "Spell altered in the crypt! 🪄"
+            triggerSync()
+        }
+    }
+
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             repository.deleteTransaction(id)
@@ -324,6 +332,14 @@ class GhostPocketViewModel(
         }
     }
 
+    fun updateFriend(friend: FriendEntity) {
+        viewModelScope.launch {
+            repository.updateFriend(friend)
+            _userMessage.value = "Mortal's scroll updated! 👥✨"
+            triggerSync()
+        }
+    }
+
     fun deleteFriend(id: String) {
         viewModelScope.launch {
             repository.deleteFriend(id)
@@ -332,10 +348,34 @@ class GhostPocketViewModel(
         }
     }
 
+    fun deleteFriendSafe(id: String, settleRemaining: Boolean) {
+        viewModelScope.launch {
+            repository.deleteFriendSafe(id, settleRemaining)
+            _userMessage.value = if (settleRemaining) "All debts settled & mortal removed! 💨" else "Mortal departed! 💨"
+            triggerSync()
+        }
+    }
+
     fun addLedgerEntry(friendId: String, amountPaise: Long, direction: LedgerDirection, note: String?) {
         viewModelScope.launch {
             repository.addLedgerEntry(friendId, amountPaise, direction, note)
             _userMessage.value = if (direction == LedgerDirection.THEY_OWE_YOU) "Debt spell cast! 📜✨" else "You owe them gold! 🪙"
+            triggerSync()
+        }
+    }
+
+    fun updateLedgerEntry(ledger: FriendLedgerEntity) {
+        viewModelScope.launch {
+            repository.updateLedgerEntry(ledger)
+            _userMessage.value = "Debt ledger updated! 📜✨"
+            triggerSync()
+        }
+    }
+
+    fun deleteLedgerEntry(id: String) {
+        viewModelScope.launch {
+            repository.deleteLedgerEntry(id)
+            _userMessage.value = "Ledger entry banished! 💨"
             triggerSync()
         }
     }
@@ -376,6 +416,15 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.updateCategoryBudget(name, budgetPaise)
             _userMessage.value = "$name budget updated to ₹${budgetPaise / 100}! 💰"
+            triggerSync()
+        }
+    }
+
+    fun editCategory(oldName: String, newName: String, newBudgetPaise: Long) {
+        viewModelScope.launch {
+            repository.renameCategory(oldName, newName, newBudgetPaise)
+            _userMessage.value = "Realm transformed to $newName! 🏷️✨"
+            triggerSync()
         }
     }
 
@@ -383,6 +432,15 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteCategory(category)
             _userMessage.value = "${category.name} disintegrated! 💨"
+            triggerSync()
+        }
+    }
+
+    fun deleteCategorySafe(category: CategoryEntity, fallbackCategory: String = "Other") {
+        viewModelScope.launch {
+            repository.deleteCategorySafe(category, fallbackCategory)
+            _userMessage.value = "${category.name} disintegrated! Records preserved in $fallbackCategory 💨"
+            triggerSync()
         }
     }
 

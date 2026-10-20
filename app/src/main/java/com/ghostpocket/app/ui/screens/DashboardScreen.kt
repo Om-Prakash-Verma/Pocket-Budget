@@ -355,7 +355,10 @@ fun DashboardScreen(
                 }
             } else {
                 items(categorySpends) { spend ->
-                    BentoCategoryBudgetCard(spend = spend)
+                    BentoCategoryBudgetCard(
+                        spend = spend,
+                        onClick = onManageCategoriesClick
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -379,6 +382,7 @@ fun DashboardScreen(
 @Composable
 fun BentoCategoryBudgetCard(
     spend: CategorySpend,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val allocated = spend.allocatedBudgetPaise
@@ -396,7 +400,8 @@ fun BentoCategoryBudgetCard(
     ClayCard(
         modifier = modifier.fillMaxWidth(),
         shapeRadius = 20.dp,
-        elevation = 3.dp
+        elevation = 3.dp,
+        onClick = onClick
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(

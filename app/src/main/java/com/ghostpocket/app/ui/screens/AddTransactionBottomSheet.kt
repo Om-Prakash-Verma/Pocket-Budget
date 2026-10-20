@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.CategoryEntity
 import com.ghostpocket.app.model.MoneyUtils
+import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.CategoryIcon
 import com.ghostpocket.app.ui.components.ClayButton
@@ -33,12 +34,27 @@ fun AddTransactionBottomSheet(
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onSave: (amountPaise: Long, type: TransactionType, category: String, note: String?) -> Unit,
-    onAddNewCategoryPrompt: () -> Unit
+    onAddNewCategoryPrompt: () -> Unit,
+    transactionToEdit: TransactionEntity? = null,
+    onDelete: ((String) -> Unit)? = null
 ) {
-    var amountInput by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var selectedCategory by remember { mutableStateOf(categories.firstOrNull()?.name ?: "") }
-    var noteInput by remember { mutableStateOf("") }
+    var amountInput by remember {
+        mutableStateOf(
+            if (transactionToEdit != null) {
+                if (transactionToEdit.amountPaise % 100 == 0L) {
+                    (transactionToEdit.amountPaise / 100).toString()
+                } else {
+                    (transactionToEdit.amountPaise / 100.0).toString()
+                }
+            } else ""
+        )
+    }
+    var selectedType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.EXPENSE) }
+    var selectedCategory by remember {
+        mutableStateOf(transactionToEdit?.category ?: (categories.firstOrNull()?.name ?: ""))
+    }
+    var noteInput by remember { mutableStateOf(transactionToEdit?.note ?: "") }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     val modalBottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -71,7 +87,7 @@ fun AddTransactionBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (selectedType == TransactionType.EXPENSE) "Record Expense 💸" else "Record Income 🪙",
+                    text = if (transactionToEdit != null) "Edit Spell ✏️" else if (selectedType == TransactionType.EXPENSE) "Record Expense 💸" else "Record Income 🪙",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold
                 )
@@ -295,8 +311,9 @@ fun AddTransactionBottomSheet(
             val effectiveCat = selectedCategory.ifBlank { categories.firstOrNull()?.name ?: "General" }
             val canSave = parsedPaise != null && parsedPaise > 0
 
+            val saveButtonText = if (transactionToEdit != null) "Save Changes ✨" else "Cast to Ledger ✨"
             ClayButton(
-                text = "Cast to Ledger ✨",
+                text = saveButtonText,
                 enabled = canSave,
                 onClick = {
                     if (parsedPaise != null) {
@@ -305,6 +322,45 @@ fun AddTransactionBottomSheet(
                 },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (transactionToEdit != null && onDelete != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ClayButton(
+                    text = "Banish Spell 🗑️",
+                    isSecondary = true,
+                    onClick = { showDeleteConfirmation = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
+    }
+
+    if (showDeleteConfirmation && transactionToEdit != null && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Banish Spell? ⚠️") },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently delete this ${MoneyUtils.formatPaiseToInr(transactionToEdit.amountPaise)} spell? This cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete(transactionToEdit.id)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Banish", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Keep Spell")
+                }
+            }
+        )
     }
 }

@@ -103,6 +103,7 @@ fun MainContent(
 
     // Bottom sheets and dialogs
     var isAddTransactionOpen by remember { mutableStateOf(false) }
+    var transactionToEdit by remember { mutableStateOf<TransactionEntity?>(null) }
     var showAddFriendDialog by remember { mutableStateOf(false) }
     var showSetBudgetDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
@@ -236,14 +237,23 @@ fun MainContent(
                         onAddLedger = { paise, direction, note ->
                             viewModel.addLedgerEntry(activeFriend.friend.id, paise, direction, note)
                         },
+                        onUpdateLedger = { updatedLedger ->
+                            viewModel.updateLedgerEntry(updatedLedger)
+                        },
+                        onDeleteLedger = { ledgerId ->
+                            viewModel.deleteLedgerEntry(ledgerId)
+                        },
                         onRecordRepayment = { paise, isRepayingToUser ->
                             viewModel.recordRepayment(activeFriend.friend.id, paise, isRepayingToUser)
                         },
                         onSettleAll = {
                             viewModel.settleFriend(activeFriend.friend.id)
                         },
-                        onDeleteFriend = {
-                            viewModel.deleteFriend(activeFriend.friend.id)
+                        onUpdateFriend = { updatedFriend ->
+                            viewModel.updateFriend(updatedFriend)
+                        },
+                        onDeleteFriend = { settleRemaining ->
+                            viewModel.deleteFriendSafe(activeFriend.friend.id, settleRemaining)
                             selectedFriendBalance = null
                         },
                         onSendWhatsAppReminder = { whatsAppNumber, amountPaise, note ->
@@ -281,7 +291,8 @@ fun MainContent(
                         onManualSync = { viewModel.manualSync() },
                         onSetBudget = { showSetBudgetDialog = true },
                         onAddCategory = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) },
-                        onDeleteCategory = { viewModel.deleteCategory(it) },
+                        onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise) },
+                        onDeleteCategory = { viewModel.deleteCategorySafe(it) },
                         onSignOut = {
                             viewModel.signOut()
                             isSettingsOpen = false
@@ -307,7 +318,7 @@ fun MainContent(
                         Screen.ACTIVITY -> {
                             ActivityScreen(
                                 transactions = uiState.allTransactions,
-                                onTransactionClick = { /* Detail action */ },
+                                onTransactionClick = { tx -> transactionToEdit = tx },
                                 onSettingsClick = { isSettingsOpen = true },
                                 onToggleTheme = onToggleTheme,
                                 isDarkTheme = isDarkTheme
@@ -342,15 +353,37 @@ fun MainContent(
         }
     }
 
-    // Add Transaction Bottom Sheet
-    if (isAddTransactionOpen) {
+    // Add / Edit Transaction Bottom Sheet
+    if (isAddTransactionOpen || transactionToEdit != null) {
         AddTransactionBottomSheet(
             categories = uiState.categories,
-            onDismiss = { isAddTransactionOpen = false },
+            transactionToEdit = transactionToEdit,
+            onDismiss = {
+                isAddTransactionOpen = false
+                transactionToEdit = null
+            },
             onAddNewCategoryPrompt = { showAddCategoryDialog = true },
             onSave = { amountPaise, type, category, note ->
-                viewModel.addTransaction(amountPaise, type, category, note)
+                val currentEdit = transactionToEdit
+                if (currentEdit != null) {
+                    viewModel.editTransaction(
+                        currentEdit.copy(
+                            amountPaise = amountPaise,
+                            type = type,
+                            category = category,
+                            note = note
+                        )
+                    )
+                } else {
+                    viewModel.addTransaction(amountPaise, type, category, note)
+                }
                 isAddTransactionOpen = false
+                transactionToEdit = null
+            },
+            onDelete = { id ->
+                viewModel.deleteTransaction(id)
+                isAddTransactionOpen = false
+                transactionToEdit = null
             }
         )
     }

@@ -33,12 +33,15 @@ interface GhostPocketRepository {
     suspend fun addFriend(name: String, phone: String? = null): FriendEntity
     suspend fun updateFriend(friend: FriendEntity)
     suspend fun deleteFriend(id: String)
+    suspend fun deleteFriendSafe(id: String, settleRemaining: Boolean = false)
     suspend fun addLedgerEntry(
         friendId: String,
         amountPaise: Long,
         direction: LedgerDirection,
         note: String? = null
     )
+    suspend fun updateLedgerEntry(ledger: FriendLedgerEntity)
+    suspend fun deleteLedgerEntry(id: String)
     suspend fun recordRepayment(
         friendId: String,
         repaymentAmountPaise: Long,
@@ -60,7 +63,9 @@ interface GhostPocketRepository {
     val allCategories: Flow<List<CategoryEntity>>
     suspend fun addCategory(name: String, budgetPaise: Long = 0L)
     suspend fun updateCategoryBudget(name: String, budgetPaise: Long)
+    suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long)
     suspend fun deleteCategory(category: CategoryEntity)
+    suspend fun deleteCategorySafe(category: CategoryEntity, fallbackCategory: String = "Other")
 
     // Sync & Cloud Operations
     suspend fun getPendingSyncItems(): PendingSyncPayload
@@ -151,6 +156,13 @@ class GhostPocketRepositoryImpl(
         }
     }
 
+    override suspend fun deleteFriendSafe(id: String, settleRemaining: Boolean) {
+        if (settleRemaining) {
+            friendLedgerDao.settleAllForFriend(id)
+        }
+        deleteFriend(id)
+    }
+
     override suspend fun addCategory(name: String, budgetPaise: Long) {
         val trimmed = name.trim()
         if (trimmed.isNotBlank()) {
@@ -170,16 +182,54 @@ class GhostPocketRepositoryImpl(
     override suspend fun updateCategoryBudget(name: String, budgetPaise: Long) {
         val trimmed = name.trim()
         if (trimmed.isNotBlank()) {
-            categoryDao.insertCategory(
-                CategoryEntity(
-                    name = trimmed,
-                    iconKey = "ghost",
-                    budgetPaise = budgetPaise,
-                    syncStatus = SyncStatus.PENDING_UPLOAD,
-                    userId = currentUserIdProvider(),
-                    updatedAt = System.currentTimeMillis()
+            val existing = categoryDao.getCategoryByName(trimmed)
+            if (existing != null) {
+                categoryDao.updateBudget(trimmed, budgetPaise)
+            } else {
+                categoryDao.insertCategory(
+                    CategoryEntity(
+                        name = trimmed,
+                        iconKey = "ghost",
+                        budgetPaise = budgetPaise,
+                        syncStatus = SyncStatus.PENDING_UPLOAD,
+                        userId = currentUserIdProvider(),
+                        updatedAt = System.currentTimeMillis()
+                    )
                 )
+            }
+        }
+    }
+
+    override suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long) {
+        val trimmedOld = oldName.trim()
+        val trimmedNew = newName.trim()
+        if (trimmedNew.isBlank()) return
+
+        if (trimmedOld.equals(trimmedNew, ignoreCase = false)) {
+            updateCategoryBudget(trimmedNew, newBudgetPaise)
+            return
+        }
+
+        // 1. Reassign all transactions from oldName to newName
+        transactionDao.reassignCategory(trimmedOld, trimmedNew)
+
+        // 2. Insert new category
+        val oldCat = categoryDao.getCategoryByName(trimmedOld)
+        val iconKey = oldCat?.iconKey ?: "ghost"
+        categoryDao.insertCategory(
+            CategoryEntity(
+                name = trimmedNew,
+                iconKey = iconKey,
+                budgetPaise = newBudgetPaise,
+                syncStatus = SyncStatus.PENDING_UPLOAD,
+                userId = currentUserIdProvider(),
+                updatedAt = System.currentTimeMillis()
             )
+        )
+
+        // 3. Delete or mark old category for deletion
+        if (oldCat != null) {
+            deleteCategory(oldCat)
         }
     }
 
@@ -189,6 +239,16 @@ class GhostPocketRepositoryImpl(
         } else {
             categoryDao.markForDeletion(category.name)
         }
+    }
+
+    override suspend fun deleteCategorySafe(category: CategoryEntity, fallbackCategory: String) {
+        // Reassign any existing transactions to fallback category
+        transactionDao.reassignCategory(category.name, fallbackCategory)
+        // Ensure fallback category exists
+        if (categoryDao.getCategoryByName(fallbackCategory) == null) {
+            addCategory(fallbackCategory, 0L)
+        }
+        deleteCategory(category)
     }
 
     override suspend fun getPendingSyncItems(): PendingSyncPayload {
@@ -576,6 +636,23 @@ class GhostPocketRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         friendLedgerDao.insertLedger(entry)
+    }
+
+    override suspend fun updateLedgerEntry(ledger: FriendLedgerEntity) {
+        val updated = ledger.copy(
+            syncStatus = SyncStatus.PENDING_UPLOAD,
+            updatedAt = System.currentTimeMillis()
+        )
+        friendLedgerDao.updateLedger(updated)
+    }
+
+    override suspend fun deleteLedgerEntry(id: String) {
+        val item = friendLedgerDao.getLedgerById(id) ?: return
+        if (item.syncStatus == SyncStatus.PENDING_UPLOAD) {
+            friendLedgerDao.hardDelete(id)
+        } else {
+            friendLedgerDao.markForDeletion(id)
+        }
     }
 
     override suspend fun recordRepayment(
