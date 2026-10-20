@@ -1,5 +1,12 @@
 package com.ghostpocket.app.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.ContactsContract
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,11 +18,13 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +60,47 @@ fun FriendDetailScreen(
     var showEditFriendDialog by remember { mutableStateOf(false) }
     var showDeleteFriendConfirm by remember { mutableStateOf(false) }
     var selectedLedgerForEdit by remember { mutableStateOf<FriendLedgerEntity?>(null) }
+
+    val context = LocalContext.current
+    var editName by remember(balance.friend) { mutableStateOf(balance.friend.name) }
+    var editPhone by remember(balance.friend) { mutableStateOf(balance.friend.phone ?: "") }
+
+    val contactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val contactUri: Uri? = result.data?.data
+            if (contactUri != null) {
+                try {
+                    val projection = arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER
+                    )
+                    context.contentResolver.query(contactUri, projection, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                            val numberIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                            if (nameIdx != -1) {
+                                val name = cursor.getString(nameIdx)
+                                if (!name.isNullOrBlank()) {
+                                    editName = name
+                                }
+                            }
+                            if (numberIdx != -1) {
+                                val rawNumber = cursor.getString(numberIdx)
+                                if (!rawNumber.isNullOrBlank()) {
+                                    editPhone = rawNumber.replace("[\\s\\-\\(\\)]".toRegex(), "")
+                                }
+                            }
+                        }
+                    }
+                    showEditFriendDialog = true
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Could not load contact: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -225,14 +275,44 @@ fun FriendDetailScreen(
 
     // Edit Friend Dialog
     if (showEditFriendDialog) {
-        var editName by remember { mutableStateOf(balance.friend.name) }
-        var editPhone by remember { mutableStateOf(balance.friend.phone ?: "") }
-
         AlertDialog(
             onDismissRequest = { showEditFriendDialog = false },
             title = { Text("Edit Mortal's Scroll 👥") },
             text = {
                 Column {
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+                                contactPickerLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "No contacts app available on device", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Contacts",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Update from Contacts 📱",
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     OutlinedTextField(
                         value = editName,
                         onValueChange = { editName = it },

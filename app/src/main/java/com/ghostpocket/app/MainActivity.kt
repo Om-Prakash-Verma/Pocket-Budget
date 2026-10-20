@@ -1,9 +1,16 @@
 package com.ghostpocket.app
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -12,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -110,6 +118,8 @@ fun MainContent(
     var isAddTransactionOpen by remember { mutableStateOf(false) }
     var transactionToEdit by remember { mutableStateOf<TransactionEntity?>(null) }
     var showAddFriendDialog by remember { mutableStateOf(false) }
+    var friendNameInput by rememberSaveable { mutableStateOf("") }
+    var friendWhatsAppInput by rememberSaveable { mutableStateOf("") }
     var showSetBudgetDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
 
@@ -125,6 +135,46 @@ fun MainContent(
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? ComponentActivity
 
+    // Contact Picker Launcher for directly adding friends from device contacts
+    val contactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val contactUri: Uri? = result.data?.data
+            if (contactUri != null) {
+                try {
+                    val projection = arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER
+                    )
+                    context.contentResolver.query(contactUri, projection, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                            val numberIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                            if (nameIdx != -1) {
+                                val name = cursor.getString(nameIdx)
+                                if (!name.isNullOrBlank()) {
+                                    friendNameInput = name
+                                }
+                            }
+                            if (numberIdx != -1) {
+                                val rawNumber = cursor.getString(numberIdx)
+                                if (!rawNumber.isNullOrBlank()) {
+                                    // Strip whitespace, hyphens, and parenthesis for clean phone format
+                                    val cleaned = rawNumber.replace("[\\s\\-\\(\\)]".toRegex(), "")
+                                    friendWhatsAppInput = cleaned
+                                }
+                            }
+                        }
+                    }
+                    showAddFriendDialog = true
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Could not load contact: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     // System Back Handler: Prevents accidental app closing and cleanly navigates back
     BackHandler(enabled = true) {
         when {
@@ -132,7 +182,11 @@ fun MainContent(
             isAddTransactionOpen -> isAddTransactionOpen = false
             showAddCategoryDialog -> showAddCategoryDialog = false
             showSetBudgetDialog -> showSetBudgetDialog = false
-            showAddFriendDialog -> showAddFriendDialog = false
+            showAddFriendDialog -> {
+                showAddFriendDialog = false
+                friendNameInput = ""
+                friendWhatsAppInput = ""
+            }
             selectedFriendBalance != null -> selectedFriendBalance = null
             isSplitBillOpen -> isSplitBillOpen = false
             isSettingsOpen -> isSettingsOpen = false
@@ -368,7 +422,11 @@ fun MainContent(
                         Screen.FRIENDS -> {
                             FriendsScreen(
                                 friends = uiState.friends,
-                                onAddFriendClick = { showAddFriendDialog = true },
+                                onAddFriendClick = {
+                                    friendNameInput = ""
+                                    friendWhatsAppInput = ""
+                                    showAddFriendDialog = true
+                                },
                                 onSplitBillClick = { isSplitBillOpen = true },
                                 onFriendClick = { balance -> selectedFriendBalance = balance },
                                 onSettingsClick = { isSettingsOpen = true },
@@ -584,11 +642,12 @@ fun MainContent(
 
     // Add Friend Dialog
     if (showAddFriendDialog) {
-        var friendName by remember { mutableStateOf("") }
-        var friendWhatsApp by remember { mutableStateOf("") }
-
         AlertDialog(
-            onDismissRequest = { showAddFriendDialog = false },
+            onDismissRequest = {
+                showAddFriendDialog = false
+                friendNameInput = ""
+                friendWhatsAppInput = ""
+            },
             title = {
                 Text(
                     text = "Summon a Friend 👥👻",
@@ -599,14 +658,64 @@ fun MainContent(
             text = {
                 Column {
                     Text(
-                        text = "Add someone to your squad. You can send them reminder card images directly to WhatsApp!",
+                        text = "Add someone to your squad. Pick directly from your phone contacts or enter details manually!",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(14.dp))
+
+                    // Quick-Pick from Contacts Button
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+                                contactPickerLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "No contacts app available on device", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Contacts",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Pick from Contacts 📱",
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "  or enter manually  ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     OutlinedTextField(
-                        value = friendName,
-                        onValueChange = { friendName = it },
+                        value = friendNameInput,
+                        onValueChange = { friendNameInput = it },
                         label = { Text("Friend's Name") },
                         placeholder = { Text("e.g. Aarav, Rohan, Priya") },
                         singleLine = true,
@@ -615,8 +724,8 @@ fun MainContent(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = friendWhatsApp,
-                        onValueChange = { friendWhatsApp = it },
+                        value = friendWhatsAppInput,
+                        onValueChange = { friendWhatsAppInput = it },
                         label = { Text("WhatsApp Number 💬") },
                         placeholder = { Text("+91 9876543210") },
                         singleLine = true,
@@ -628,17 +737,23 @@ fun MainContent(
             confirmButton = {
                 ClayButton(
                     text = "Summon 🪄",
-                    enabled = friendName.isNotBlank(),
+                    enabled = friendNameInput.isNotBlank(),
                     onClick = {
-                        if (friendName.isNotBlank()) {
-                            viewModel.addFriend(friendName.trim(), friendWhatsApp.trim())
+                        if (friendNameInput.isNotBlank()) {
+                            viewModel.addFriend(friendNameInput.trim(), friendWhatsAppInput.trim())
                             showAddFriendDialog = false
+                            friendNameInput = ""
+                            friendWhatsAppInput = ""
                         }
                     }
                 )
             },
             dismissButton = {
-                TextButton(onClick = { showAddFriendDialog = false }) {
+                TextButton(onClick = {
+                    showAddFriendDialog = false
+                    friendNameInput = ""
+                    friendWhatsAppInput = ""
+                }) {
                     Text("Cancel")
                 }
             }
