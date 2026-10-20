@@ -24,7 +24,8 @@ interface GhostPocketRepository {
 
     // Budget
     val userBudget: Flow<UserBudgetEntity?>
-    suspend fun setUserBudget(amountPaise: Long)
+    val allUserBudgets: Flow<List<UserBudgetEntity>>
+    suspend fun setUserBudget(amountPaise: Long, monthKey: String = "")
 
     // Friends & Ledgers
     val allFriendsWithBalances: Flow<List<FriendBalance>>
@@ -134,16 +135,37 @@ class GhostPocketRepositoryImpl(
     override val userBudget: Flow<UserBudgetEntity?> =
         budgetDao.getBudget()
 
-    override suspend fun setUserBudget(amountPaise: Long) {
+    override val allUserBudgets: Flow<List<UserBudgetEntity>> =
+        budgetDao.getAllBudgets()
+
+    override suspend fun setUserBudget(amountPaise: Long, monthKey: String) {
+        val targetMonthKey = if (monthKey.isNotBlank()) monthKey else com.ghostpocket.app.model.SelectedMonth.current().monthKey
+        val now = System.currentTimeMillis()
+        val userId = currentUserIdProvider()
+
+        // Set month-scoped budget
         budgetDao.setBudget(
             UserBudgetEntity(
-                id = "current_budget",
+                id = targetMonthKey,
                 budgetPaise = amountPaise,
                 syncStatus = SyncStatus.PENDING_UPLOAD,
-                userId = currentUserIdProvider(),
-                updatedAt = System.currentTimeMillis()
+                userId = userId,
+                updatedAt = now
             )
         )
+
+        // Also keep legacy current_budget updated if setting for current month
+        if (targetMonthKey == com.ghostpocket.app.model.SelectedMonth.current().monthKey) {
+            budgetDao.setBudget(
+                UserBudgetEntity(
+                    id = "current_budget",
+                    budgetPaise = amountPaise,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    userId = userId,
+                    updatedAt = now
+                )
+            )
+        }
     }
 
     override suspend fun deleteFriend(id: String) {
@@ -500,9 +522,10 @@ class GhostPocketRepositoryImpl(
 
         // 5. User Budget Settings
         for (b in pullRes.budgets) {
+            val budgetId = if (b.id.isNotBlank()) b.id else "current_budget"
             budgetDao.setBudget(
                 UserBudgetEntity(
-                    id = "current_budget",
+                    id = budgetId,
                     budgetPaise = b.budgetPaise,
                     syncStatus = SyncStatus.SYNCED,
                     userId = userId,

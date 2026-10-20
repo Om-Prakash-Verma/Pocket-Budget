@@ -17,6 +17,7 @@ data class GhostPocketUiState(
     val categories: List<CategoryEntity> = emptyList(),
     val categorySpends: List<CategorySpend> = emptyList(),
     val userBudget: UserBudgetEntity? = null,
+    val allBudgets: List<UserBudgetEntity> = emptyList(),
     val selectedMonth: SelectedMonth = SelectedMonth.current(),
     val isSyncing: Boolean = false,
     val isInitialDataFetching: Boolean = false,
@@ -91,7 +92,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.4", 7)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.5", 8)
     }
 
     fun selectPreviousMonth() {
@@ -132,12 +133,25 @@ class GhostPocketViewModel(
             rawFriends = rawFriends,
             categories = categories
         )
-    }.combine(repository.userBudget) { state, budget ->
-        state.copy(userBudget = budget)
+    }.combine(repository.allUserBudgets) { state, budgets ->
+        state.copy(allBudgets = budgets)
     }.combine(_selectedMonth) { state, month ->
         val allTxs = state.allTransactions
         val categories = state.categories
-        val budgetEntity = state.userBudget
+        val allBudgets = state.allBudgets
+
+        // Month-scoped budget resolution:
+        // 1. Exact match for current selected month (e.g. "2026-10")
+        // 2. Fallback to latest earlier configured month (e.g. "2026-09" if "2026-10" hasn't been set yet)
+        // 3. Fallback to legacy "current_budget"
+        // 4. Fallback to 0L
+        val monthBudgetEntity = allBudgets.find { it.id == month.monthKey }
+            ?: allBudgets
+                .filter { it.id.matches(Regex("\\d{4}-\\d{2}")) && it.id < month.monthKey }
+                .maxByOrNull { it.id }
+            ?: allBudgets.find { it.id == "current_budget" }
+
+        val monthBudgetPaise: Long = monthBudgetEntity?.budgetPaise ?: 0L
 
         val (start, end) = month.timeRange()
         val monthTxs = allTxs.filter { it.timestamp in start..end }
@@ -151,7 +165,7 @@ class GhostPocketViewModel(
         val summary = MonthlySummary(
             totalIncomePaise = income,
             totalExpensePaise = expense,
-            initialBudgetPaise = budgetEntity?.budgetPaise ?: 0L,
+            initialBudgetPaise = monthBudgetPaise,
             allTimeIncomePaise = allTimeIncome,
             allTimeExpensePaise = allTimeExpense
         )
@@ -181,6 +195,7 @@ class GhostPocketViewModel(
             summary = summary,
             recentTransactions = monthTxs,
             categorySpends = categorySpends,
+            userBudget = monthBudgetEntity,
             selectedMonth = month
         )
     }.combine(_isSyncing) { state, syncing ->
@@ -405,9 +420,10 @@ class GhostPocketViewModel(
         _userMessage.value = null
     }
 
-    fun setUserBudget(budgetPaise: Long) {
+    fun setUserBudget(budgetPaise: Long, monthKey: String = "") {
+        val targetMonthKey = if (monthKey.isNotBlank()) monthKey else _selectedMonth.value.monthKey
         viewModelScope.launch {
-            repository.setUserBudget(budgetPaise)
+            repository.setUserBudget(budgetPaise, targetMonthKey)
             _userMessage.value = "Budget locked in! 💰👻"
         }
     }

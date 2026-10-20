@@ -568,16 +568,18 @@ fun MainContent(
 
     // Set Budget Dialog
     if (showSetBudgetDialog) {
-        var budgetInput by remember {
+        val selectedMonth = uiState.selectedMonth
+        val currentMonthBudgetPaise = uiState.summary.initialBudgetPaise
+        var budgetInput by remember(selectedMonth, currentMonthBudgetPaise) {
             mutableStateOf(
-                if (uiState.summary.initialBudgetPaise > 0L) (uiState.summary.initialBudgetPaise / 100).toString() else ""
+                if (currentMonthBudgetPaise > 0L) (currentMonthBudgetPaise / 100).toString() else ""
             )
         }
         AlertDialog(
             onDismissRequest = { showSetBudgetDialog = false },
             title = {
                 Text(
-                    text = "Set Your Pocket Budget 💰👻",
+                    text = "Budget for ${selectedMonth.label} 💰👻",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -585,7 +587,7 @@ fun MainContent(
             text = {
                 Column {
                     Text(
-                        text = "How much gold/allowance do you have for the month? The ghost will watch over your limits.",
+                        text = "Set your gold allowance specifically for ${selectedMonth.label}. Other months will preserve their own budgets intact.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -638,7 +640,7 @@ fun MainContent(
                     enabled = paise != null,
                     onClick = {
                         if (paise != null) {
-                            viewModel.setUserBudget(paise)
+                            viewModel.setUserBudget(paise, selectedMonth.monthKey)
                             showSetBudgetDialog = false
                         }
                     }

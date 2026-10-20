@@ -149,6 +149,15 @@ interface BudgetDao {
     @Query("SELECT * FROM user_settings WHERE id = 'current_budget' LIMIT 1")
     suspend fun getBudgetSnapshot(): UserBudgetEntity?
 
+    @Query("SELECT * FROM user_settings")
+    fun getAllBudgets(): Flow<List<UserBudgetEntity>>
+
+    @Query("SELECT * FROM user_settings WHERE id = :id LIMIT 1")
+    fun getBudgetById(id: String): Flow<UserBudgetEntity?>
+
+    @Query("SELECT * FROM user_settings WHERE id = :id LIMIT 1")
+    suspend fun getBudgetSnapshotById(id: String): UserBudgetEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setBudget(budget: UserBudgetEntity)
 

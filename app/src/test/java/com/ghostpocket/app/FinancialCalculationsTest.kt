@@ -1,5 +1,6 @@
 package com.ghostpocket.app
 
+import com.ghostpocket.app.model.UserBudgetEntity
 import com.ghostpocket.app.model.FriendBalance
 import com.ghostpocket.app.model.FriendEntity
 import com.ghostpocket.app.model.MonthlySummary
@@ -64,5 +65,37 @@ class FinancialCalculationsTest {
         )
         assertEquals(0L, balance3.netPaise)
         assertTrue(balance3.isSettled)
+    }
+
+    @Test
+    fun testMonthScopedBudgetResolution() {
+        val augBudget = UserBudgetEntity(id = "2026-08", budgetPaise = 1000000L) // ₹10,000
+        val octBudget = UserBudgetEntity(id = "2026-10", budgetPaise = 1500000L) // ₹15,000
+        val allBudgets: List<UserBudgetEntity> = listOf(augBudget, octBudget)
+
+        fun resolveBudgetForMonth(monthKey: String): Long {
+            return allBudgets.find { it.id == monthKey }?.budgetPaise
+                ?: allBudgets
+                    .filter { it.id.matches(Regex("\\d{4}-\\d{2}")) && it.id < monthKey }
+                    .maxByOrNull { it.id }
+                    ?.budgetPaise
+                ?: allBudgets.find { it.id == "current_budget" }?.budgetPaise
+                ?: 0L
+        }
+
+        // August 2026 has explicit budget of ₹10,000
+        assertEquals(1000000L, resolveBudgetForMonth("2026-08"))
+
+        // September 2026 has no explicit budget -> inherits August 2026 (₹10,000)
+        assertEquals(1000000L, resolveBudgetForMonth("2026-09"))
+
+        // October 2026 was raised to ₹15,000
+        assertEquals(1500000L, resolveBudgetForMonth("2026-10"))
+
+        // November 2026 has no explicit budget yet -> inherits October 2026 (₹15,000)
+        assertEquals(1500000L, resolveBudgetForMonth("2026-11"))
+
+        // July 2026 (before any budget was set) -> returns 0L
+        assertEquals(0L, resolveBudgetForMonth("2026-07"))
     }
 }

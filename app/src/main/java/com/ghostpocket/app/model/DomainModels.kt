@@ -54,6 +54,9 @@ data class SelectedMonth(
     val year: Int,
     val month: Int // 1 to 12
 ) {
+    val monthKey: String
+        get() = String.format(java.util.Locale.US, "%04d-%02d", year, month)
+
     val label: String
         get() {
             val cal = java.util.Calendar.getInstance().apply {
