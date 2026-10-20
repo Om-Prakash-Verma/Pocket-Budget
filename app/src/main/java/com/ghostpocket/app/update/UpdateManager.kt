@@ -122,14 +122,21 @@ class UpdateManager(private val context: Context) {
             val releaseTag = release.tagName
             val remoteVersionName = releaseTag.trim().removePrefix("v").removePrefix("V")
 
-            // Parse remote versionCode from release notes or tag
-            val remoteVersionCode = extractVersionCode(releaseNotes, remoteVersionName)
+            // Parse remote versionCode from release notes if explicitly specified
+            val explicitRemoteVersionCode = extractVersionCode(releaseNotes)
 
-            // Determine if update is available
-            val isNewer = when {
-                remoteVersionCode > currentVersionCode -> true
-                remoteVersionCode == currentVersionCode -> isSemanticVersionNewer(remoteVersionName, currentVersionName)
-                else -> isSemanticVersionNewer(remoteVersionName, currentVersionName)
+            // Determine if update is available:
+            // 1. If remoteVersionName is higher than current (e.g. 1.4.1 > 1.4.0), check versionCode
+            // 2. If remoteVersionName is identical (1.4.0 == 1.4.0), the user already has this release, so do not prompt.
+            val isSemanticHigher = isSemanticVersionNewer(remoteVersionName, currentVersionName)
+            val isNewer = if (isSemanticHigher) {
+                if (explicitRemoteVersionCode != null) {
+                    explicitRemoteVersionCode > currentVersionCode
+                } else {
+                    true
+                }
+            } else {
+                false
             }
 
             if (!isNewer) {
@@ -146,7 +153,7 @@ class UpdateManager(private val context: Context) {
 
             val updateInfo = AppUpdateInfo(
                 latestVersionName = remoteVersionName,
-                latestVersionCode = if (remoteVersionCode > 0) remoteVersionCode else (currentVersionCode + 1),
+                latestVersionCode = explicitRemoteVersionCode ?: (currentVersionCode + 1),
                 releaseTag = releaseTag,
                 releaseNotes = releaseNotes,
                 apkDownloadUrl = apkAsset.downloadUrl,
@@ -334,32 +341,22 @@ class UpdateManager(private val context: Context) {
     }
 
     private fun getUpdateDirectory(): File {
-        val dir = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir,
-            "updates"
-        )
+        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.cacheDir
+        val dir = File(baseDir, "updates")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
-    private fun extractVersionCode(releaseNotes: String, versionName: String): Int {
-        // Look for explicit versionCode: 123 or build: 123
-        val pattern = Pattern.compile("(?i)(?:version[_\\s-]?code|build[_\\s-]?number|vc)[:=\\s]+(\\d+)")
-        val matcher = pattern.matcher(releaseNotes)
+    private fun extractVersionCode(releaseNotes: String): Int? {
+        // Strip markdown asterisks, backticks, underscores so **versionCode**: 3 matches easily
+        val cleanNotes = releaseNotes.replace("*", "").replace("`", "")
+        val pattern = Pattern.compile("(?i)(?:version[_\\s-]?code|build[_\\s-]?number|vc)\\s*[:=]\\s*(\\d+)")
+        val matcher = pattern.matcher(cleanNotes)
         if (matcher.find()) {
-            matcher.group(1)?.toIntOrNull()?.let { return it }
+            return matcher.group(1)?.toIntOrNull()
         }
-
-        // Fallback: check if versionName has format major.minor.patch -> create a synthetic code
-        val parts = versionName.split(".").mapNotNull { it.toIntOrNull() }
-        if (parts.size >= 2) {
-            val major = parts.getOrElse(0) { 0 }
-            val minor = parts.getOrElse(1) { 0 }
-            val patch = parts.getOrElse(2) { 0 }
-            return (major * 10000) + (minor * 100) + patch
-        }
-
-        return -1
+        return null
     }
 
     private fun extractSha256(releaseNotes: String, assets: List<GitHubAssetDto>): String? {

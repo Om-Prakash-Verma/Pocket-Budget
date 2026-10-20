@@ -36,11 +36,13 @@ class UpdateSystemTest {
     @Test
     fun testVersionCodeExtractionFromReleaseNotes() {
         fun extractVersionCode(releaseNotes: String): Int? {
-            val pattern = Pattern.compile("(?i)(?:version[_\\s-]?code|build[_\\s-]?number|vc)[:=\\s]+(\\d+)")
-            val matcher = pattern.matcher(releaseNotes)
+            val cleanNotes = releaseNotes.replace("*", "").replace("`", "")
+            val pattern = Pattern.compile("(?i)(?:version[_\\s-]?code|build[_\\s-]?number|vc)\\s*[:=]\\s*(\\d+)")
+            val matcher = pattern.matcher(cleanNotes)
             return if (matcher.find()) matcher.group(1)?.toIntOrNull() else null
         }
 
+        assertEquals(3, extractVersionCode("- **versionCode**: 3"))
         assertEquals(3, extractVersionCode("### Changelog\nversionCode: 3\n- Fixed crash"))
         assertEquals(15, extractVersionCode("Release notes:\nBuild_Number: 15\nNew features"))
         assertEquals(7, extractVersionCode("vc=7"))
