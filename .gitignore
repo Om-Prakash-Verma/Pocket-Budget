@@ -18,3 +18,4 @@ captures
 .kotlin/
 backend/node_modules/
 .env
+release_notes.txt
