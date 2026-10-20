@@ -330,6 +330,21 @@ class UpdateManager(private val context: Context) {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+
+            // Explicitly grant read permission to resolving package installer handlers
+            val resolveInfoList = context.packageManager.queryIntentActivities(
+                installIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            for (resolveInfo in resolveInfoList) {
+                val packageName = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(
+                    packageName,
+                    apkUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
 
             context.startActivity(installIntent)
@@ -341,9 +356,7 @@ class UpdateManager(private val context: Context) {
     }
 
     private fun getUpdateDirectory(): File {
-        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: context.cacheDir
-        val dir = File(baseDir, "updates")
+        val dir = File(context.cacheDir, "updates")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
