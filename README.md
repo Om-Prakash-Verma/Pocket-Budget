@@ -172,5 +172,6 @@ The output file will be generated at:
 
 ## 📜 License
 
-Built with 👻 for college mortals tracking their coins.
-Distributed under the MIT License.
+Copyright (c) 2026 Om Prakash Verma. All rights reserved.
+
+This software and source code are proprietary and confidential. Unauthorized copying, modification, distribution, sublicensing, or commercial exploitation is strictly prohibited. See [`LICENSE`](file:///d:/Github/Pocket-Budget/LICENSE) for complete terms.
