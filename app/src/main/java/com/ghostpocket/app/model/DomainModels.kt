@@ -15,13 +15,16 @@ data class FriendBalance(
 data class MonthlySummary(
     val totalIncomePaise: Long = 0L,
     val totalExpensePaise: Long = 0L,
-    val initialBudgetPaise: Long = 0L
+    val initialBudgetPaise: Long = 0L,
+    val allTimeIncomePaise: Long = totalIncomePaise,
+    val allTimeExpensePaise: Long = totalExpensePaise
 ) {
     /**
-     * Effective balance: User's set budget + total income - total expenses
+     * Net balance: User's set budget + all-time income - all-time expenses.
+     * Represents all remaining money across all time, independent of historical month views.
      */
     val balancePaise: Long
-        get() = initialBudgetPaise + totalIncomePaise - totalExpensePaise
+        get() = initialBudgetPaise + allTimeIncomePaise - allTimeExpensePaise
 
     val remainingBudgetPaise: Long
         get() = initialBudgetPaise - totalExpensePaise

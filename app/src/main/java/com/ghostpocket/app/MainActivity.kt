@@ -34,6 +34,7 @@ import com.ghostpocket.app.ui.components.ClayButton
 import com.ghostpocket.app.ui.components.ClayCard
 import com.ghostpocket.app.ui.components.GhostMascot
 import com.ghostpocket.app.ui.components.GhostMood
+import com.ghostpocket.app.ui.components.UpdateDialog
 import com.ghostpocket.app.ui.screens.*
 
 import com.ghostpocket.app.ui.theme.GhostPocketTheme
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: GhostPocketViewModel by viewModels {
         val app = application as GhostPocketApp
-        GhostPocketViewModelFactory(app.repository, app.d1ApiClient) {
+        GhostPocketViewModelFactory(app.repository, app.d1ApiClient, app.updateManager) {
             SyncWorker.scheduleSync(applicationContext)
         }
     }
@@ -108,6 +109,12 @@ fun MainContent(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
+
+    // In-App Update Observation
+    val availableUpdate by viewModel.availableUpdate.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
+    val isCheckingForUpdate by viewModel.isCheckingForUpdate.collectAsState()
+    val (currentVersionName, currentVersionCode) = remember { viewModel.getCurrentVersionInfo() }
 
     // Secondary sub-screens
     var selectedFriendBalance by remember { mutableStateOf<FriendBalance?>(null) }
@@ -178,6 +185,7 @@ fun MainContent(
     // System Back Handler: Prevents accidental app closing and cleanly navigates back
     BackHandler(enabled = true) {
         when {
+            availableUpdate != null && !availableUpdate!!.isMandatory -> viewModel.dismissUpdateDialog()
             transactionToEdit != null -> transactionToEdit = null
             isAddTransactionOpen -> isAddTransactionOpen = false
             showAddCategoryDialog -> showAddCategoryDialog = false
@@ -377,6 +385,10 @@ fun MainContent(
                         isSyncing = uiState.isSyncing,
                         currentThemeMode = currentThemeMode,
                         onThemeChange = onThemeChange,
+                        isCheckingForUpdate = isCheckingForUpdate,
+                        currentVersionName = currentVersionName,
+                        currentVersionCode = currentVersionCode,
+                        onCheckForUpdates = { viewModel.checkForUpdates(isManual = true) },
                         onBack = { isSettingsOpen = false },
                         onManualSync = { viewModel.manualSync() },
                         onSetBudget = { showSetBudgetDialog = true },
@@ -757,6 +769,19 @@ fun MainContent(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // In-App Update Dialog
+    availableUpdate?.let { info ->
+        UpdateDialog(
+            updateInfo = info,
+            downloadState = downloadState,
+            currentVersionName = currentVersionName,
+            onStartDownload = { viewModel.startUpdateDownload(info) },
+            onInstall = { apkFile -> viewModel.installApk(apkFile) },
+            onCancelDownload = { viewModel.cancelUpdateDownload() },
+            onDismiss = { viewModel.dismissUpdateDialog() }
         )
     }
 }

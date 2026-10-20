@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,10 @@ fun SettingsScreen(
     isSyncing: Boolean,
     currentThemeMode: AppThemeMode = AppThemeMode.DARK,
     onThemeChange: (AppThemeMode) -> Unit = {},
+    isCheckingForUpdate: Boolean = false,
+    currentVersionName: String = "1.4.0",
+    currentVersionCode: Int = 2,
+    onCheckForUpdates: () -> Unit = {},
     onBack: () -> Unit,
     onManualSync: () -> Unit,
     onSetBudget: () -> Unit,
@@ -313,6 +318,57 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
+            // BENTO CELL: App Updates
+            item {
+                ClayCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shapeRadius = 24.dp,
+                    elevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Ghost Updates 🚀",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "v$currentVersionName ($currentVersionCode)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "GhostPocket checks GitHub Releases for new spells, bug banishments, and optimizations.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    ClayButton(
+                        text = if (isCheckingForUpdate) "Summoning latest release..." else "Check for Updates 🔄",
+                        icon = Icons.Default.SystemUpdate,
+                        onClick = onCheckForUpdates,
+                        enabled = !isCheckingForUpdate,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+            }
+
             // BENTO CELL: Account & Sign Out
             item {
                 ClayCard(
@@ -344,7 +400,7 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "GhostPocket v2.0 • Clay Bento Edition",
+                        text = "GhostPocket v$currentVersionName • Clay Bento Edition",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -20,6 +20,21 @@ class FinancialCalculationsTest {
     }
 
     @Test
+    fun testAllTimeNetBalanceIndependentOfSelectedMonth() {
+        val summary = MonthlySummary(
+            totalIncomePaise = 200000L,      // Selected month income: ₹2,000
+            totalExpensePaise = 500000L,     // Selected month expense: ₹5,000
+            initialBudgetPaise = 1000000L,   // Monthly allowance / initial budget: ₹10,000
+            allTimeIncomePaise = 2500000L,   // All-time income: ₹25,000
+            allTimeExpensePaise = 1200000L   // All-time expense: ₹12,000
+        )
+        // All-time net balance = 10,000 + 25,000 - 12,000 = ₹23,000 = 2300000L
+        assertEquals(2300000L, summary.balancePaise)
+        // Selected month remaining budget = 10,000 - 5,000 = ₹5,000 = 500000L
+        assertEquals(500000L, summary.remainingBudgetPaise)
+    }
+
+    @Test
     fun testFriendLedgerNetCalculations() {
         val friend = FriendEntity(name = "Aarav")
         

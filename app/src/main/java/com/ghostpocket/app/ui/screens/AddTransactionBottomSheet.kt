@@ -51,7 +51,9 @@ fun AddTransactionBottomSheet(
     }
     var selectedType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.EXPENSE) }
     var selectedCategory by remember {
-        mutableStateOf(transactionToEdit?.category ?: (categories.firstOrNull()?.name ?: ""))
+        mutableStateOf<String?>(
+            transactionToEdit?.category?.takeIf { it.isNotBlank() && it != "Uncategorized" }
+        )
     }
     var noteInput by remember { mutableStateOf(transactionToEdit?.note ?: "") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -213,11 +215,18 @@ fun AddTransactionBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Choose Realm (Category)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Choose Realm (Optional)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (selectedCategory == null) "No realm selected • Note required below" else "Selected: ${selectedCategory}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selectedCategory == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 // Quick Add Category Pill
                 Box(
@@ -237,63 +246,87 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (categories.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .clickable { onAddNewCategoryPrompt() }
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No categories yet. Tap here to create one! (e.g. Chai ☕, Food 🍕)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // "None / Uncategorized" option
+                item {
+                    val isNoneSelected = selectedCategory == null
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isNoneSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { selectedCategory = null }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "✨ None",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isNoneSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(categories) { cat ->
-                        val isSelected = cat.name == selectedCategory
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { selectedCategory = cat.name }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CategoryIcon(
-                                categoryName = cat.name,
-                                modifier = Modifier.size(16.dp),
-                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = cat.name,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+
+                items(categories) { cat ->
+                    val isSelected = cat.name == selectedCategory
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable {
+                                selectedCategory = if (selectedCategory == cat.name) null else cat.name
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CategoryIcon(
+                            categoryName = cat.name,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = cat.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            val isCategorySelected = !selectedCategory.isNullOrBlank()
+            val isNoteRequired = !isCategorySelected
+
             // Note Field with rounded container
             OutlinedTextField(
                 value = noteInput,
                 onValueChange = { noteInput = it },
-                label = { Text("Spell Note (Optional)") },
-                placeholder = { Text("Chai with team, bus pass, pizza...") },
+                label = {
+                    Text(
+                        if (isNoteRequired) "Spell Note (Required)*" else "Spell Note (Optional)"
+                    )
+                },
+                placeholder = {
+                    Text(
+                        if (isNoteRequired) "e.g. Chai at canteen, auto fare, printing..."
+                        else "Chai with team, bus pass, pizza..."
+                    )
+                },
+                supportingText = {
+                    if (isNoteRequired && noteInput.isBlank()) {
+                        Text(
+                            text = "Note is mandatory when no category is selected",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = isNoteRequired && noteInput.isBlank(),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 textStyle = MaterialTheme.typography.bodyLarge,
@@ -304,20 +337,21 @@ fun AddTransactionBottomSheet(
                 )
             )
 
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Cast / Save Button
             val parsedPaise = MoneyUtils.parseToPaise(amountInput)
-            val effectiveCat = selectedCategory.ifBlank { categories.firstOrNull()?.name ?: "General" }
-            val canSave = parsedPaise != null && parsedPaise > 0
+            val effectiveCat = selectedCategory?.trim()?.takeIf { it.isNotBlank() } ?: "Uncategorized"
+            val isMetadataValid = if (isCategorySelected) true else noteInput.isNotBlank()
+            val canSave = parsedPaise != null && parsedPaise > 0 && isMetadataValid
 
             val saveButtonText = if (transactionToEdit != null) "Save Changes ✨" else "Cast to Ledger ✨"
             ClayButton(
                 text = saveButtonText,
                 enabled = canSave,
                 onClick = {
-                    if (parsedPaise != null) {
-                        onSave(parsedPaise, selectedType, effectiveCat, noteInput.takeIf { it.isNotBlank() })
+                    if (parsedPaise != null && isMetadataValid) {
+                        onSave(parsedPaise, selectedType, effectiveCat, noteInput.trim().takeIf { it.isNotBlank() })
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

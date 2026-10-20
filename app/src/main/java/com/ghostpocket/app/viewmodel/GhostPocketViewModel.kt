@@ -29,11 +29,70 @@ data class GhostPocketUiState(
 class GhostPocketViewModel(
     private val repository: GhostPocketRepository,
     private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
+    private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
     private val triggerSync: () -> Unit
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SelectedMonth.current())
     val selectedMonth: StateFlow<SelectedMonth> = _selectedMonth.asStateFlow()
+
+    // In-App Update States
+    val availableUpdate = MutableStateFlow<com.ghostpocket.app.update.AppUpdateInfo?>(null)
+    val isCheckingForUpdate = MutableStateFlow(false)
+    val downloadState = updateManager?.downloadState ?: MutableStateFlow<com.ghostpocket.app.update.DownloadState>(com.ghostpocket.app.update.DownloadState.Idle)
+
+    init {
+        // Asynchronous throttled check for updates on app launch
+        checkForUpdates(isManual = false)
+    }
+
+    fun checkForUpdates(isManual: Boolean = false) {
+        if (updateManager == null) return
+        viewModelScope.launch {
+            if (isManual) isCheckingForUpdate.value = true
+            when (val res = updateManager.checkForUpdates(isManual)) {
+                is com.ghostpocket.app.update.UpdateCheckResult.UpdateAvailable -> {
+                    availableUpdate.value = res.info
+                }
+                is com.ghostpocket.app.update.UpdateCheckResult.UpToDate -> {
+                    if (isManual) {
+                        val (vName, _) = updateManager.getCurrentVersionInfo()
+                        _userMessage.value = "GhostPocket is already up to date (v$vName)! 👻✨"
+                    }
+                }
+                is com.ghostpocket.app.update.UpdateCheckResult.Error -> {
+                    if (isManual) {
+                        _userMessage.value = res.message
+                    }
+                }
+            }
+            if (isManual) isCheckingForUpdate.value = false
+        }
+    }
+
+    fun startUpdateDownload(info: com.ghostpocket.app.update.AppUpdateInfo) {
+        if (updateManager == null) return
+        viewModelScope.launch {
+            updateManager.downloadApk(info)
+        }
+    }
+
+    fun cancelUpdateDownload() {
+        updateManager?.cancelDownload()
+    }
+
+    fun dismissUpdateDialog() {
+        availableUpdate.value = null
+        updateManager?.resetDownloadState()
+    }
+
+    fun installApk(file: java.io.File): Boolean {
+        return updateManager?.installApk(file) ?: false
+    }
+
+    fun getCurrentVersionInfo(): Pair<String, Int> {
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.0", 2)
+    }
 
     fun selectPreviousMonth() {
         _selectedMonth.value = _selectedMonth.value.previous()
@@ -84,10 +143,17 @@ class GhostPocketViewModel(
         val monthTxs = allTxs.filter { it.timestamp in start..end }
         val income = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
         val expense = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
+
+        // All-time income and expense for global net balance calculation (all remaining money)
+        val allTimeIncome = allTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
+        val allTimeExpense = allTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
+
         val summary = MonthlySummary(
             totalIncomePaise = income,
             totalExpensePaise = expense,
-            initialBudgetPaise = budgetEntity?.budgetPaise ?: 0L
+            initialBudgetPaise = budgetEntity?.budgetPaise ?: 0L,
+            allTimeIncomePaise = allTimeIncome,
+            allTimeExpensePaise = allTimeExpense
         )
 
         val monthExpenses = monthTxs.filter { it.type == TransactionType.EXPENSE }
@@ -501,12 +567,13 @@ class GhostPocketViewModel(
 class GhostPocketViewModelFactory(
     private val repository: GhostPocketRepository,
     private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
+    private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
     private val triggerSync: () -> Unit
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(GhostPocketViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return GhostPocketViewModel(repository, d1ApiClient, triggerSync) as T
+            return GhostPocketViewModel(repository, d1ApiClient, updateManager, triggerSync) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

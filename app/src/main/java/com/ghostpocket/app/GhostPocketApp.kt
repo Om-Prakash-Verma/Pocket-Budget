@@ -17,6 +17,10 @@ class GhostPocketApp : Application() {
         D1ApiClient(this)
     }
 
+    val updateManager by lazy {
+        com.ghostpocket.app.update.UpdateManager(this)
+    }
+
     val database by lazy {
         GhostPocketDatabase.getDatabase(this)
     }
