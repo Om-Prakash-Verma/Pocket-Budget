@@ -163,9 +163,10 @@ The output file will be generated at:
   adb install -r app/build/outputs/apk/debug/GhostPocket-v1.1.0.apk
   ```
 - **Publish to GitHub Releases**:
+  See the full guide in [`RELEASING.md`](file:///d:/Github/Pocket-Budget/RELEASING.md) or run:
   ```bash
   git push origin main
-  gh release create v1.1.0 app/build/outputs/apk/debug/GhostPocket-v1.1.0.apk --title "GhostPocket v1.1.0 👻" --notes "Direct personal email authentication & unified Bento headers"
+  gh release create v1.4.0 app\build\outputs\apk\debug\GhostPocket-v1.4.0.apk --title "GhostPocket v1.4.0 🚀👻" --notes "versionCode: 3`nSHA256: <hash>"
   ```
 
 ---
