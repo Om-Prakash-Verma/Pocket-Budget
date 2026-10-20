@@ -221,7 +221,11 @@ fun SplitBillScreen(
                     }
                 }
             } else {
-                items(friends) { friend ->
+                items(
+                    items = friends,
+                    key = { it.id },
+                    contentType = { "split_friend" }
+                ) { friend ->
                     val isChecked = selectedFriendIds.contains(friend.id)
                     ClayCard(
                         modifier = Modifier.fillMaxWidth(),

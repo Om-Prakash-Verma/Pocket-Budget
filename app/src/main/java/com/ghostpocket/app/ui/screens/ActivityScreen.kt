@@ -197,7 +197,11 @@ fun ActivityScreen(
                 contentPadding = PaddingValues(bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredList) { tx ->
+                items(
+                    items = filteredList,
+                    key = { it.id },
+                    contentType = { "transaction" }
+                ) { tx ->
                     BentoTransactionItem(
                         transaction = tx,
                         onClick = { onTransactionClick(tx) }

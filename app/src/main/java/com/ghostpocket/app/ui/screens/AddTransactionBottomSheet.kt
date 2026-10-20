@@ -270,7 +270,11 @@ fun AddTransactionBottomSheet(
                     }
                 }
 
-                items(categories) { cat ->
+                items(
+                    items = categories,
+                    key = { it.name },
+                    contentType = { "category_chip" }
+                ) { cat ->
                     val isSelected = cat.name == selectedCategory
                     Row(
                         modifier = Modifier

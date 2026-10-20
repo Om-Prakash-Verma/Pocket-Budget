@@ -281,7 +281,11 @@ fun FriendsScreen(
                     }
                 }
             } else {
-                items(filteredFriends) { balance ->
+                items(
+                    items = filteredFriends,
+                    key = { it.friend.id },
+                    contentType = { "friend_balance" }
+                ) { balance ->
                     BentoFriendRow(
                         balance = balance,
                         onClick = { onFriendClick(balance) }
@@ -313,10 +317,12 @@ fun BentoFriendRow(
     modifier: Modifier = Modifier
 ) {
     val net = balance.netPaise
-    val label = when {
-        net > 0 -> "${MoneyUtils.formatPaiseToInr(net)} · Owes you 📜"
-        net < 0 -> "${MoneyUtils.formatPaiseToInr(kotlin.math.abs(net))} · You owe 🪙"
-        else -> "Settled ✓ (Peace restored)"
+    val label = remember(net) {
+        when {
+            net > 0 -> "${MoneyUtils.formatPaiseToInr(net)} · Owes you 📜"
+            net < 0 -> "${MoneyUtils.formatPaiseToInr(kotlin.math.abs(net))} · You owe 🪙"
+            else -> "Settled ✓ (Peace restored)"
+        }
     }
 
     ClayCard(

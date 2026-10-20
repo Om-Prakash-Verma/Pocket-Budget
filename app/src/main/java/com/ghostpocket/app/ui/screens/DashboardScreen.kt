@@ -431,7 +431,11 @@ fun DashboardScreen(
                     }
                 }
             } else {
-                items(categorySpends) { spend ->
+                items(
+                    items = categorySpends,
+                    key = { it.category },
+                    contentType = { "category_spend" }
+                ) { spend ->
                     BentoCategoryBudgetCard(
                         spend = spend,
                         onClick = onManageCategoriesClick
@@ -468,10 +472,23 @@ fun BentoCategoryBudgetCard(
     val hasBudget = allocated > 0L
     val isOverBudget = hasBudget && remaining < 0L
 
-    val fraction = if (hasBudget) {
-        (spent.toFloat() / allocated.toFloat()).coerceIn(0f, 1f)
-    } else {
-        spend.percentage.coerceIn(0f, 1f)
+    val fraction = remember(hasBudget, spent, allocated, spend.percentage) {
+        if (hasBudget) {
+            (spent.toFloat() / allocated.toFloat()).coerceIn(0f, 1f)
+        } else {
+            spend.percentage.coerceIn(0f, 1f)
+        }
+    }
+
+    val progressShape = remember { RoundedCornerShape(4.dp) }
+    val formattedSpent = remember(spent) { MoneyUtils.formatPaiseToInr(spent) }
+    val formattedBudget = remember(allocated) { "Budget: ${MoneyUtils.formatPaiseToInr(allocated)}" }
+    val remainingText = remember(hasBudget, remaining, spend.percentage) {
+        if (hasBudget) {
+            if (remaining >= 0L) "Left: ${MoneyUtils.formatPaiseToInr(remaining)}" else "-${MoneyUtils.formatPaiseToInr(kotlin.math.abs(remaining))} ⚠️"
+        } else {
+            "${(spend.percentage * 100).toInt()}% of total expenses"
+        }
     }
 
     ClayCard(
@@ -523,7 +540,7 @@ fun BentoCategoryBudgetCard(
                 // Spent display
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = MoneyUtils.formatPaiseToInr(spent),
+                        text = formattedSpent,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -542,14 +559,14 @@ fun BentoCategoryBudgetCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(progressShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(fraction = fraction.coerceIn(0.02f, 1f))
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(progressShape)
                         .background(MaterialTheme.colorScheme.primary)
                 )
             }
@@ -563,17 +580,13 @@ fun BentoCategoryBudgetCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (hasBudget) "Budget: ${MoneyUtils.formatPaiseToInr(allocated)}" else "Uncapped",
+                    text = if (hasBudget) formattedBudget else "Uncapped",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
-                    text = if (hasBudget) {
-                        if (remaining >= 0L) "Left: ${MoneyUtils.formatPaiseToInr(remaining)}" else "-${MoneyUtils.formatPaiseToInr(kotlin.math.abs(remaining))} ⚠️"
-                    } else {
-                        "${(spend.percentage * 100).toInt()}% of total expenses"
-                    },
+                    text = remainingText,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -589,8 +602,10 @@ fun BentoTransactionItem(
     modifier: Modifier = Modifier
 ) {
     val isExpense = transaction.type == TransactionType.EXPENSE
-    val formattedAmount = MoneyUtils.formatPaiseToInr(transaction.amountPaise)
-    val displayAmount = if (isExpense) "-$formattedAmount" else "+$formattedAmount"
+    val displayAmount = remember(transaction.amountPaise, isExpense) {
+        val formattedAmount = MoneyUtils.formatPaiseToInr(transaction.amountPaise)
+        if (isExpense) "-$formattedAmount" else "+$formattedAmount"
+    }
 
     ClayCard(
         modifier = modifier.fillMaxWidth(),

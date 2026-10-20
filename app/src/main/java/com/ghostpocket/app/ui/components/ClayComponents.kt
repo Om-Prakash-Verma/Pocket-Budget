@@ -33,48 +33,58 @@ fun ClayCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(shapeRadius)
+    val shape = remember(shapeRadius) { RoundedCornerShape(shapeRadius) }
+    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
+
+    // Soft clay gradient
+    val clayGradient = remember(isDark) {
+        if (isDark) {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFF16161D),
+                    Color(0xFF101014)
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF1F1F6)
+                )
+            )
+        }
+    }
+
+    val topBorderColor = remember(isDark) {
+        if (isDark) Color(0xFF2C2C38).copy(alpha = 0.35f) else Color(0xFFFFFFFF).copy(alpha = 0.8f)
+    }
+    val shadowColor = remember(isDark) {
+        if (isDark) Color(0x66000000) else Color(0x18000000)
+    }
+
+    val interactionSource = remember { MutableInteractionSource() }
     val clickModifier = if (onClick != null) {
-        val interactionSource = remember { MutableInteractionSource() }
         Modifier.clickable(
             interactionSource = interactionSource,
             indication = null
         ) { onClick() }
     } else Modifier
 
-    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
-
-    // Soft clay gradient
-    val clayGradient = if (isDark) {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF16161D),
-                Color(0xFF101014)
-            )
+    val shadowModifier = if (elevation > 0.dp) {
+        Modifier.shadow(
+            elevation = elevation,
+            shape = shape,
+            ambientColor = shadowColor,
+            spotColor = shadowColor
         )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFFFFFFF),
-                Color(0xFFF1F1F6)
-            )
-        )
-    }
-
-    val topBorderColor = if (isDark) Color(0xFF2C2C38) else Color(0xFFFFFFFF)
-    val shadowColor = if (isDark) Color(0xA6000000) else Color(0x1F000000)
+    } else Modifier
 
     Box(
         modifier = modifier
-            .shadow(
-                elevation = elevation,
-                shape = shape,
-                ambientColor = shadowColor,
-                spotColor = shadowColor
-            )
+            .then(shadowModifier)
             .clip(shape)
             .background(clayGradient)
-            .border(1.5.dp, topBorderColor.copy(alpha = if (isDark) 0.35f else 0.8f), shape)
+            .border(1.5.dp, topBorderColor, shape)
             .then(clickModifier)
             .padding(18.dp)
     ) {
@@ -96,20 +106,22 @@ fun ClayButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val shape = RoundedCornerShape(16.dp)
+    val shape = remember { RoundedCornerShape(16.dp) }
 
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
-    val bgBrush = when {
-        !enabled -> Brush.verticalGradient(listOf(Color(0xFF555562), Color(0xFF3F3F4A)))
-        isSecondary -> {
-            if (isDark) Brush.verticalGradient(listOf(Color(0xFF1D1D25), Color(0xFF131318)))
-            else Brush.verticalGradient(listOf(Color(0xFFF0F0F5), Color(0xFFE4E4EB)))
-        }
-        else -> {
-            // Primary high-contrast clay button
-            if (isDark) Brush.verticalGradient(listOf(Color(0xFFF7F7FA), Color(0xFFDFDFE8)))
-            else Brush.verticalGradient(listOf(Color(0xFF1F1F24), Color(0xFF0F0F12)))
+    val bgBrush = remember(enabled, isSecondary, isDark) {
+        when {
+            !enabled -> Brush.verticalGradient(listOf(Color(0xFF555562), Color(0xFF3F3F4A)))
+            isSecondary -> {
+                if (isDark) Brush.verticalGradient(listOf(Color(0xFF1D1D25), Color(0xFF131318)))
+                else Brush.verticalGradient(listOf(Color(0xFFF0F0F5), Color(0xFFE4E4EB)))
+            }
+            else -> {
+                // Primary high-contrast clay button
+                if (isDark) Brush.verticalGradient(listOf(Color(0xFFF7F7FA), Color(0xFFDFDFE8)))
+                else Brush.verticalGradient(listOf(Color(0xFF1F1F24), Color(0xFF0F0F12)))
+            }
         }
     }
 
@@ -120,7 +132,9 @@ fun ClayButton(
     }
 
     val elevation = if (isPressed) 1.dp else 4.dp
-    val buttonBorder = if (isDark && isSecondary) Color(0xFF2C2C38) else if (!isDark && isSecondary) Color(0xFFE0E0E6) else Color.Transparent
+    val buttonBorder = remember(isDark, isSecondary) {
+        if (isDark && isSecondary) Color(0xFF2C2C38) else if (!isDark && isSecondary) Color(0xFFE0E0E6) else Color.Transparent
+    }
 
     Box(
         modifier = modifier
@@ -173,42 +187,52 @@ fun ClayIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val shape = RoundedCornerShape(shapeRadius)
+    val shape = remember(shapeRadius) { RoundedCornerShape(shapeRadius) }
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
-    val bgBrush = if (isDark) {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFF181820),
-                Color(0xFF111116)
+    val bgBrush = remember(isDark) {
+        if (isDark) {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFF181820),
+                    Color(0xFF111116)
+                )
             )
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFFFFFFFF),
-                Color(0xFFF1F1F6)
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF1F1F6)
+                )
             )
-        )
+        }
     }
 
-    val topBorderColor = if (isDark) Color(0xFF2C2C38) else Color(0xFFFFFFFF)
-    val shadowColor = if (isDark) Color(0xA6000000) else Color(0x1F000000)
+    val topBorderColor = remember(isDark) {
+        if (isDark) Color(0xFF2C2C38).copy(alpha = 0.35f) else Color(0xFFFFFFFF).copy(alpha = 0.8f)
+    }
+    val shadowColor = remember(isDark) {
+        if (isDark) Color(0x66000000) else Color(0x18000000)
+    }
     val iconColor = if (isDark) Color(0xFFF5F5F8) else Color(0xFF1D1D22)
     val currentElevation = if (isPressed) 1.dp else elevation
+
+    val shadowModifier = if (currentElevation > 0.dp) {
+        Modifier.shadow(
+            elevation = currentElevation,
+            shape = shape,
+            ambientColor = shadowColor,
+            spotColor = shadowColor
+        )
+    } else Modifier
 
     Box(
         modifier = modifier
             .size(size)
-            .shadow(
-                elevation = currentElevation,
-                shape = shape,
-                ambientColor = shadowColor,
-                spotColor = shadowColor
-            )
+            .then(shadowModifier)
             .clip(shape)
             .background(bgBrush)
-            .border(1.5.dp, topBorderColor.copy(alpha = if (isDark) 0.35f else 0.8f), shape)
+            .border(1.5.dp, topBorderColor, shape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null

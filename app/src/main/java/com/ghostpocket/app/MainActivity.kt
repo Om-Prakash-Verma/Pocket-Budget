@@ -12,6 +12,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +52,13 @@ enum class Screen(val title: String, val icon: ImageVector) {
     ACTIVITY("Spells 📜", Icons.Default.ReceiptLong),
     FRIENDS("Squad 👥", Icons.Default.Group),
     INSIGHTS("Crystal 🔮", Icons.Default.Analytics)
+}
+
+private enum class ActiveSubScreen {
+    NONE,
+    FRIEND_DETAIL,
+    SPLIT_BILL,
+    SETTINGS
 }
 
 class MainActivity : ComponentActivity() {
@@ -322,140 +333,197 @@ fun MainContent(
                 .padding(innerPadding)
                 .statusBarsPadding()
         ) {
-            when {
-                selectedFriendBalance != null -> {
-                    val activeFriend = selectedFriendBalance!!
-                    val ledgers by viewModel.getLedgerEntriesForFriend(activeFriend.friend.id).collectAsState(initial = emptyList())
-                    val latestBalance = uiState.friends.find { it.friend.id == activeFriend.friend.id } ?: activeFriend
+            val activeSubScreen = when {
+                selectedFriendBalance != null -> ActiveSubScreen.FRIEND_DETAIL
+                isSplitBillOpen -> ActiveSubScreen.SPLIT_BILL
+                isSettingsOpen -> ActiveSubScreen.SETTINGS
+                else -> ActiveSubScreen.NONE
+            }
 
-                    FriendDetailScreen(
-                        balance = latestBalance,
-                        ledgers = ledgers,
-                        onBack = { selectedFriendBalance = null },
-                        onAddLedger = { paise, direction, note ->
-                            viewModel.addLedgerEntry(activeFriend.friend.id, paise, direction, note)
-                        },
-                        onUpdateLedger = { updatedLedger ->
-                            viewModel.updateLedgerEntry(updatedLedger)
-                        },
-                        onDeleteLedger = { ledgerId ->
-                            viewModel.deleteLedgerEntry(ledgerId)
-                        },
-                        onRecordRepayment = { paise, isRepayingToUser ->
-                            viewModel.recordRepayment(activeFriend.friend.id, paise, isRepayingToUser)
-                        },
-                        onSettleAll = {
-                            viewModel.settleFriend(activeFriend.friend.id)
-                        },
-                        onUpdateFriend = { updatedFriend ->
-                            viewModel.updateFriend(updatedFriend)
-                        },
-                        onDeleteFriend = { settleRemaining ->
-                            viewModel.deleteFriendSafe(activeFriend.friend.id, settleRemaining)
-                            selectedFriendBalance = null
-                        },
-                        onSendWhatsAppReminder = { whatsAppNumber, amountPaise, note ->
-                            com.ghostpocket.app.util.WhatsAppReminderHelper.sendWhatsAppReminder(
-                                context = context,
-                                whatsAppNumber = whatsAppNumber,
-                                friendName = activeFriend.friend.name,
-                                amountPaise = amountPaise,
-                                note = note
+            AnimatedContent(
+                targetState = activeSubScreen,
+                transitionSpec = {
+                    if (targetState != ActiveSubScreen.NONE && initialState == ActiveSubScreen.NONE) {
+                        (slideInVertically(animationSpec = tween(240, easing = FastOutSlowInEasing)) { it / 8 } +
+                                fadeIn(animationSpec = tween(200)))
+                            .togetherWith(
+                                fadeOut(animationSpec = tween(160)) +
+                                        scaleOut(targetScale = 0.96f, animationSpec = tween(160))
                             )
-                        }
-                    )
-                }
-
-                isSplitBillOpen -> {
-                    SplitBillScreen(
-                        friends = uiState.rawFriends,
-                        onBack = { isSplitBillOpen = false },
-                        onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds ->
-                            val defaultCat = uiState.categories.firstOrNull()?.name ?: "Split"
-                            viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, defaultCat)
-                            isSplitBillOpen = false
-                        }
-                    )
-                }
-
-                isSettingsOpen -> {
-                    SettingsScreen(
-                        categories = uiState.categories,
-                        currentBudgetPaise = uiState.summary.initialBudgetPaise,
-                        isSyncing = uiState.isSyncing,
-                        currentThemeMode = currentThemeMode,
-                        onThemeChange = onThemeChange,
-                        isCheckingForUpdate = isCheckingForUpdate,
-                        currentVersionName = currentVersionName,
-                        currentVersionCode = currentVersionCode,
-                        onCheckForUpdates = { viewModel.checkForUpdates(isManual = true) },
-                        onBack = { isSettingsOpen = false },
-                        onManualSync = { viewModel.manualSync() },
-                        onSetBudget = { showSetBudgetDialog = true },
-                        onAddCategory = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) },
-                        onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise) },
-                        onDeleteCategory = { viewModel.deleteCategorySafe(it) },
-                        onSignOut = {
-                            viewModel.signOut()
-                            isSettingsOpen = false
-                        }
-                    )
-                }
-
-                else -> {
-                    when (currentScreen) {
-                        Screen.HOME -> {
-                            DashboardScreen(
-                                summary = uiState.summary,
-                                categorySpends = uiState.categorySpends,
-                                selectedMonth = uiState.selectedMonth,
-                                onPreviousMonth = { viewModel.selectPreviousMonth() },
-                                onNextMonth = { viewModel.selectNextMonth() },
-                                onCurrentMonth = { viewModel.selectCurrentMonth() },
-                                onAddClick = { isAddTransactionOpen = true },
-                                onSetBudgetClick = { showSetBudgetDialog = true },
-                                onManageCategoriesClick = { isSettingsOpen = true },
-                                onSettingsClick = { isSettingsOpen = true },
-                                onToggleTheme = onToggleTheme,
-                                isDarkTheme = isDarkTheme
+                    } else if (targetState == ActiveSubScreen.NONE && initialState != ActiveSubScreen.NONE) {
+                        (fadeIn(animationSpec = tween(200)) +
+                                scaleIn(initialScale = 0.96f, animationSpec = tween(200)))
+                            .togetherWith(
+                                slideOutVertically(animationSpec = tween(200, easing = FastOutLinearInEasing)) { it / 8 } +
+                                        fadeOut(animationSpec = tween(160))
                             )
-                        }
+                    } else {
+                        fadeIn(animationSpec = tween(180))
+                            .togetherWith(fadeOut(animationSpec = tween(180)))
+                    }
+                },
+                label = "SubScreenAnimatedTransition"
+            ) { subScreen ->
+                when (subScreen) {
+                    ActiveSubScreen.FRIEND_DETAIL -> {
+                        val activeFriend = selectedFriendBalance
+                        if (activeFriend != null) {
+                            val ledgers by viewModel.getLedgerEntriesForFriend(activeFriend.friend.id).collectAsState(initial = emptyList())
+                            val latestBalance = uiState.friends.find { it.friend.id == activeFriend.friend.id } ?: activeFriend
 
-                        Screen.ACTIVITY -> {
-                            ActivityScreen(
-                                transactions = uiState.allTransactions,
-                                onTransactionClick = { tx -> transactionToEdit = tx },
-                                onSettingsClick = { isSettingsOpen = true },
-                                onToggleTheme = onToggleTheme,
-                                isDarkTheme = isDarkTheme
-                            )
-                        }
-
-                        Screen.FRIENDS -> {
-                            FriendsScreen(
-                                friends = uiState.friends,
-                                onAddFriendClick = {
-                                    friendNameInput = ""
-                                    friendWhatsAppInput = ""
-                                    showAddFriendDialog = true
+                            FriendDetailScreen(
+                                balance = latestBalance,
+                                ledgers = ledgers,
+                                onBack = { selectedFriendBalance = null },
+                                onAddLedger = { paise, direction, note ->
+                                    viewModel.addLedgerEntry(activeFriend.friend.id, paise, direction, note)
                                 },
-                                onSplitBillClick = { isSplitBillOpen = true },
-                                onFriendClick = { balance -> selectedFriendBalance = balance },
-                                onSettingsClick = { isSettingsOpen = true },
-                                onToggleTheme = onToggleTheme,
-                                isDarkTheme = isDarkTheme
+                                onUpdateLedger = { updatedLedger ->
+                                    viewModel.updateLedgerEntry(updatedLedger)
+                                },
+                                onDeleteLedger = { ledgerId ->
+                                    viewModel.deleteLedgerEntry(ledgerId)
+                                },
+                                onRecordRepayment = { paise, isRepayingToUser ->
+                                    viewModel.recordRepayment(activeFriend.friend.id, paise, isRepayingToUser)
+                                },
+                                onSettleAll = {
+                                    viewModel.settleFriend(activeFriend.friend.id)
+                                },
+                                onUpdateFriend = { updatedFriend ->
+                                    viewModel.updateFriend(updatedFriend)
+                                },
+                                onDeleteFriend = { settleRemaining ->
+                                    viewModel.deleteFriendSafe(activeFriend.friend.id, settleRemaining)
+                                    selectedFriendBalance = null
+                                },
+                                onSendWhatsAppReminder = { whatsAppNumber, amountPaise, note ->
+                                    com.ghostpocket.app.util.WhatsAppReminderHelper.sendWhatsAppReminder(
+                                        context = context,
+                                        whatsAppNumber = whatsAppNumber,
+                                        friendName = activeFriend.friend.name,
+                                        amountPaise = amountPaise,
+                                        note = note
+                                    )
+                                }
                             )
                         }
+                    }
 
-                        Screen.INSIGHTS -> {
-                            InsightsScreen(
-                                summary = uiState.summary,
-                                categorySpends = uiState.categorySpends,
-                                recentTransactions = uiState.recentTransactions,
-                                onSettingsClick = { isSettingsOpen = true },
-                                onToggleTheme = onToggleTheme,
-                                isDarkTheme = isDarkTheme
-                            )
+                    ActiveSubScreen.SPLIT_BILL -> {
+                        SplitBillScreen(
+                            friends = uiState.rawFriends,
+                            onBack = { isSplitBillOpen = false },
+                            onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds ->
+                                val defaultCat = uiState.categories.firstOrNull()?.name ?: "Split"
+                                viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, defaultCat)
+                                isSplitBillOpen = false
+                            }
+                        )
+                    }
+
+                    ActiveSubScreen.SETTINGS -> {
+                        SettingsScreen(
+                            categories = uiState.categories,
+                            currentBudgetPaise = uiState.summary.initialBudgetPaise,
+                            isSyncing = uiState.isSyncing,
+                            currentThemeMode = currentThemeMode,
+                            onThemeChange = onThemeChange,
+                            isCheckingForUpdate = isCheckingForUpdate,
+                            currentVersionName = currentVersionName,
+                            currentVersionCode = currentVersionCode,
+                            onCheckForUpdates = { viewModel.checkForUpdates(isManual = true) },
+                            onBack = { isSettingsOpen = false },
+                            onManualSync = { viewModel.manualSync() },
+                            onSetBudget = { showSetBudgetDialog = true },
+                            onAddCategory = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) },
+                            onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise) },
+                            onDeleteCategory = { viewModel.deleteCategorySafe(it) },
+                            onSignOut = {
+                                viewModel.signOut()
+                                isSettingsOpen = false
+                            }
+                        )
+                    }
+
+                    ActiveSubScreen.NONE -> {
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                val forward = targetState.ordinal > initialState.ordinal
+                                if (forward) {
+                                    (slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { it / 4 } +
+                                            fadeIn(animationSpec = tween(200)))
+                                        .togetherWith(
+                                            slideOutHorizontally(animationSpec = tween(180, easing = FastOutLinearInEasing)) { -it / 4 } +
+                                                    fadeOut(animationSpec = tween(160))
+                                        )
+                                } else {
+                                    (slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { -it / 4 } +
+                                            fadeIn(animationSpec = tween(200)))
+                                        .togetherWith(
+                                            slideOutHorizontally(animationSpec = tween(180, easing = FastOutLinearInEasing)) { it / 4 } +
+                                                    fadeOut(animationSpec = tween(160))
+                                        )
+                                }
+                            },
+                            label = "TabContentAnimatedTransition"
+                        ) { screen ->
+                            when (screen) {
+                                Screen.HOME -> {
+                                    DashboardScreen(
+                                        summary = uiState.summary,
+                                        categorySpends = uiState.categorySpends,
+                                        selectedMonth = uiState.selectedMonth,
+                                        onPreviousMonth = { viewModel.selectPreviousMonth() },
+                                        onNextMonth = { viewModel.selectNextMonth() },
+                                        onCurrentMonth = { viewModel.selectCurrentMonth() },
+                                        onAddClick = { isAddTransactionOpen = true },
+                                        onSetBudgetClick = { showSetBudgetDialog = true },
+                                        onManageCategoriesClick = { isSettingsOpen = true },
+                                        onSettingsClick = { isSettingsOpen = true },
+                                        onToggleTheme = onToggleTheme,
+                                        isDarkTheme = isDarkTheme
+                                    )
+                                }
+
+                                Screen.ACTIVITY -> {
+                                    ActivityScreen(
+                                        transactions = uiState.allTransactions,
+                                        onTransactionClick = { tx -> transactionToEdit = tx },
+                                        onSettingsClick = { isSettingsOpen = true },
+                                        onToggleTheme = onToggleTheme,
+                                        isDarkTheme = isDarkTheme
+                                    )
+                                }
+
+                                Screen.FRIENDS -> {
+                                    FriendsScreen(
+                                        friends = uiState.friends,
+                                        onAddFriendClick = {
+                                            friendNameInput = ""
+                                            friendWhatsAppInput = ""
+                                            showAddFriendDialog = true
+                                        },
+                                        onSplitBillClick = { isSplitBillOpen = true },
+                                        onFriendClick = { balance -> selectedFriendBalance = balance },
+                                        onSettingsClick = { isSettingsOpen = true },
+                                        onToggleTheme = onToggleTheme,
+                                        isDarkTheme = isDarkTheme
+                                    )
+                                }
+
+                                Screen.INSIGHTS -> {
+                                    InsightsScreen(
+                                        summary = uiState.summary,
+                                        categorySpends = uiState.categorySpends,
+                                        recentTransactions = uiState.recentTransactions,
+                                        onSettingsClick = { isSettingsOpen = true },
+                                        onToggleTheme = onToggleTheme,
+                                        isDarkTheme = isDarkTheme
+                                    )
+                                }
+                            }
                         }
                     }
                 }

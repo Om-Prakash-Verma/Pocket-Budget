@@ -227,7 +227,11 @@ fun FriendDetailScreen(
                     )
                 }
             } else {
-                items(ledgers) { entry ->
+                items(
+                    items = ledgers,
+                    key = { it.id },
+                    contentType = { "ledger_entry" }
+                ) { entry ->
                     BentoLedgerItem(
                         entry = entry,
                         onClick = { selectedLedgerForEdit = entry }
