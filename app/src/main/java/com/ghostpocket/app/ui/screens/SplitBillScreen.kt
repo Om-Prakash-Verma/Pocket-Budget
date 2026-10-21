@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -15,8 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +33,7 @@ import com.ghostpocket.app.ui.components.ClayCard
 fun SplitBillScreen(
     friends: List<FriendEntity>,
     onBack: () -> Unit,
-    onSplitConfirmed: (title: String, totalPaise: Long, payerFriendId: String?, participantFriendIds: List<String>) -> Unit,
+    onSplitConfirmed: (title: String, totalPaise: Long, payerFriendId: String?, participantFriendIds: List<String>, customShares: Map<String, Long>?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var titleInput by remember { mutableStateOf("") }
@@ -39,16 +41,46 @@ fun SplitBillScreen(
     var payerFriendId by remember { mutableStateOf<String?>(null) } // null = You
     val selectedFriendIds = remember { mutableStateListOf<String>() }
 
+    var isCustomSplit by remember { mutableStateOf(false) }
+    // customShares: key "user" for currentUser, or friendId for friends
+    val customShareInputs = remember { mutableStateMapOf<String, String>() }
+
     val parsedTotalPaise = MoneyUtils.parseToPaise(amountInput.text) ?: 0L
     val totalParticipants = selectedFriendIds.size + 1 // friends + current user
-    val shares = remember(parsedTotalPaise, totalParticipants) {
+    val equalShares = remember(parsedTotalPaise, totalParticipants) {
         if (parsedTotalPaise > 0 && totalParticipants > 1) {
             MoneyUtils.splitEqually(parsedTotalPaise, totalParticipants)
         } else {
             emptyList()
         }
     }
-    val perPersonPaise = shares.firstOrNull() ?: 0L
+    val perPersonPaise = equalShares.firstOrNull() ?: 0L
+
+    // Helper to calculate total allocated paise in custom split mode
+    val totalAllocatedPaise = remember(customShareInputs.toMap(), isCustomSplit, selectedFriendIds.toList()) {
+        if (!isCustomSplit) {
+            parsedTotalPaise
+        } else {
+            val userPaise = MoneyUtils.parseToPaise(customShareInputs["user"] ?: "") ?: 0L
+            val friendsPaise = selectedFriendIds.sumOf { fId ->
+                MoneyUtils.parseToPaise(customShareInputs[fId] ?: "") ?: 0L
+            }
+            userPaise + friendsPaise
+        }
+    }
+
+    // Auto-prefill custom share inputs when switching to custom mode if empty
+    LaunchedEffect(isCustomSplit) {
+        if (isCustomSplit && parsedTotalPaise > 0 && selectedFriendIds.isNotEmpty()) {
+            if (customShareInputs.isEmpty()) {
+                val userAmt = (perPersonPaise / 100).toString()
+                customShareInputs["user"] = userAmt
+                selectedFriendIds.forEach { fId ->
+                    customShareInputs[fId] = userAmt
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -122,8 +154,8 @@ fun SplitBillScreen(
                             textStyle = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent
                             )
                         )
                     }
@@ -209,10 +241,63 @@ fun SplitBillScreen(
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // Split Mode Selector (Equal vs Custom)
+            item {
+                Text(
+                    text = "Split Mode ⚖️",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (!isCustomSplit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { isCustomSplit = false }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Equal Split ⚖️",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!isCustomSplit) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isCustomSplit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { isCustomSplit = true }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Custom Shares 🍕",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isCustomSplit) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(22.dp))
             }
 
-            // Split with Whom
+            // Split with Whom Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -231,6 +316,70 @@ fun SplitBillScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Custom Split: "You" Share Field
+            if (isCustomSplit) {
+                item {
+                    ClayCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shapeRadius = 16.dp,
+                        elevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "👑",
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Your Share",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Included automatically",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = customShareInputs["user"] ?: "",
+                                onValueChange = { str ->
+                                    if (str.all { it.isDigit() || it == '.' }) {
+                                        customShareInputs["user"] = str
+                                    }
+                                },
+                                prefix = { Text("₹", fontWeight = FontWeight.Bold) },
+                                placeholder = { Text("0") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(120.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
 
             if (friends.isEmpty()) {
@@ -255,8 +404,15 @@ fun SplitBillScreen(
                         shapeRadius = 16.dp,
                         elevation = 2.dp,
                         onClick = {
-                            if (isChecked) selectedFriendIds.remove(friend.id)
-                            else selectedFriendIds.add(friend.id)
+                            if (isChecked) {
+                                selectedFriendIds.remove(friend.id)
+                                customShareInputs.remove(friend.id)
+                            } else {
+                                selectedFriendIds.add(friend.id)
+                                if (isCustomSplit && !customShareInputs.containsKey(friend.id)) {
+                                    customShareInputs[friend.id] = (perPersonPaise / 100).toString()
+                                }
+                            }
                         }
                     ) {
                         Row(
@@ -264,7 +420,10 @@ fun SplitBillScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
@@ -286,11 +445,37 @@ fun SplitBillScreen(
                                 )
                             }
 
+                            if (isCustomSplit && isChecked) {
+                                OutlinedTextField(
+                                    value = customShareInputs[friend.id] ?: "",
+                                    onValueChange = { str ->
+                                        if (str.all { it.isDigit() || it == '.' }) {
+                                            customShareInputs[friend.id] = str
+                                        }
+                                    },
+                                    prefix = { Text("₹", fontWeight = FontWeight.Bold) },
+                                    placeholder = { Text("0") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .width(120.dp)
+                                        .padding(end = 6.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+
                             Checkbox(
                                 checked = isChecked,
                                 onCheckedChange = { checked ->
-                                    if (checked) selectedFriendIds.add(friend.id)
-                                    else selectedFriendIds.remove(friend.id)
+                                    if (checked) {
+                                        selectedFriendIds.add(friend.id)
+                                        if (isCustomSplit && !customShareInputs.containsKey(friend.id)) {
+                                            customShareInputs[friend.id] = (perPersonPaise / 100).toString()
+                                        }
+                                    } else {
+                                        selectedFriendIds.remove(friend.id)
+                                        customShareInputs.remove(friend.id)
+                                    }
                                 }
                             )
                         }
@@ -308,29 +493,69 @@ fun SplitBillScreen(
                         shapeRadius = 18.dp,
                         elevation = 4.dp
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
+                        if (!isCustomSplit) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "FAIR SHARE ($totalParticipants participants)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        letterSpacing = 1.1.sp
+                                    )
+                                    Text(
+                                        text = "${MoneyUtils.formatPaiseToInr(perPersonPaise)} / person",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
                                 Text(
-                                    text = "FAIR SHARE ($totalParticipants participants)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = 1.1.sp
-                                )
-                                Text(
-                                    text = "${MoneyUtils.formatPaiseToInr(perPersonPaise)} / person",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
+                                    text = "⚔️✨",
+                                    style = MaterialTheme.typography.titleLarge
                                 )
                             }
-
-                            Text(
-                                text = "⚔️✨",
-                                style = MaterialTheme.typography.titleLarge
-                            )
+                        } else {
+                            val diff = parsedTotalPaise - totalAllocatedPaise
+                            val isBalanced = diff == 0L
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "CUSTOM ALLOCATION",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            letterSpacing = 1.1.sp
+                                        )
+                                        Text(
+                                            text = "${MoneyUtils.formatPaiseToInr(totalAllocatedPaise)} of ${MoneyUtils.formatPaiseToInr(parsedTotalPaise)}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = if (isBalanced) "✅ Matched" else if (diff > 0) "⚠️ Remaining" else "🛑 Over",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isBalanced) Color(0xFF10B981) else if (diff > 0) Color(0xFFF59E0B) else Color(0xFFEF4444)
+                                    )
+                                }
+                                if (!isBalanced) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = if (diff > 0) "${MoneyUtils.formatPaiseToInr(diff)} left to assign" else "${MoneyUtils.formatPaiseToInr(-diff)} over total bill",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (diff > 0) Color(0xFFF59E0B) else Color(0xFFEF4444)
+                                    )
+                                }
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
@@ -339,19 +564,31 @@ fun SplitBillScreen(
 
             // Confirmation Action
             item {
+                val isCustomValid = !isCustomSplit || (totalAllocatedPaise == parsedTotalPaise)
                 val canConfirm = titleInput.isNotBlank() &&
                         parsedTotalPaise > 0 &&
-                        selectedFriendIds.isNotEmpty()
+                        selectedFriendIds.isNotEmpty() &&
+                        isCustomValid
 
                 ClayButton(
-                    text = "Cast Split Bill ⚔️",
+                    text = if (isCustomSplit && totalAllocatedPaise != parsedTotalPaise) "Match Total to Split ⚔️" else "Cast Split Bill ⚔️",
                     enabled = canConfirm,
                     onClick = {
+                        val customSharesMap: Map<String, Long>? = if (isCustomSplit) {
+                            val map = mutableMapOf<String, Long>()
+                            map["user"] = MoneyUtils.parseToPaise(customShareInputs["user"] ?: "") ?: 0L
+                            selectedFriendIds.forEach { fId ->
+                                map[fId] = MoneyUtils.parseToPaise(customShareInputs[fId] ?: "") ?: 0L
+                            }
+                            map
+                        } else null
+
                         onSplitConfirmed(
                             titleInput.trim(),
                             parsedTotalPaise,
                             payerFriendId,
-                            selectedFriendIds.toList()
+                            selectedFriendIds.toList(),
+                            customSharesMap
                         )
                     },
                     modifier = Modifier.fillMaxWidth()

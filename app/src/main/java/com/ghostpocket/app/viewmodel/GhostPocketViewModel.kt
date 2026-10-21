@@ -104,7 +104,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.9", 12)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.5.0", 13)
     }
 
     fun selectPreviousMonth() {
@@ -565,9 +565,16 @@ class GhostPocketViewModel(
         }
     }
 
-    fun splitBill(title: String, totalPaise: Long, payerFriendId: String?, participantFriendIds: List<String>, category: String) {
+    fun splitBill(
+        title: String,
+        totalPaise: Long,
+        payerFriendId: String?,
+        participantFriendIds: List<String>,
+        category: String,
+        customShares: Map<String, Long>? = null
+    ) {
         viewModelScope.launch {
-            repository.splitBill(title, totalPaise, payerFriendId, participantFriendIds, category)
+            repository.splitBill(title, totalPaise, payerFriendId, participantFriendIds, category, customShares)
             _userMessage.value = "Bill sliced into pieces! ⚔️👻"
         }
     }

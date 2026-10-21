@@ -57,7 +57,8 @@ interface GhostPocketRepository {
         totalPaise: Long,
         payerFriendId: String?,
         participantFriendIds: List<String>,
-        category: String
+        category: String,
+        customShares: Map<String, Long>? = null
     )
 
     // Categories
@@ -761,14 +762,24 @@ class GhostPocketRepositoryImpl(
         totalPaise: Long,
         payerFriendId: String?,
         participantFriendIds: List<String>,
-        category: String
+        category: String,
+        customShares: Map<String, Long>?
     ) {
         if (totalPaise <= 0) return
         val totalMembers = participantFriendIds.size + 1
         if (totalMembers <= 1) return
 
-        val shares = MoneyUtils.splitEqually(totalPaise, totalMembers)
-        val userShare = shares.first()
+        val userShare: Long
+        val friendShares: Map<String, Long>
+
+        if (customShares != null && customShares.isNotEmpty()) {
+            userShare = customShares["user"] ?: 0L
+            friendShares = participantFriendIds.associateWith { customShares[it] ?: 0L }
+        } else {
+            val shares = MoneyUtils.splitEqually(totalPaise, totalMembers)
+            userShare = shares.first()
+            friendShares = participantFriendIds.mapIndexed { index, fId -> fId to shares[index + 1] }.toMap()
+        }
 
         if (payerFriendId == null) {
             // 1. User paid the full bill upfront. Deduct the full cash amount from wallet.
@@ -782,23 +793,26 @@ class GhostPocketRepositoryImpl(
             addTransaction(tx)
 
             // 2. Friends each owe user their share
-            participantFriendIds.forEachIndexed { index, fId ->
-                val fShare = shares[index + 1]
-                addLedgerEntry(
-                    friendId = fId,
-                    amountPaise = fShare,
-                    direction = LedgerDirection.THEY_OWE_YOU,
-                    note = "$title (Split share)"
-                )
+            friendShares.forEach { (fId, fShare) ->
+                if (fShare > 0) {
+                    addLedgerEntry(
+                        friendId = fId,
+                        amountPaise = fShare,
+                        direction = LedgerDirection.THEY_OWE_YOU,
+                        note = "$title (Split share)"
+                    )
+                }
             }
         } else {
             // A friend paid upfront. User owes friend their share, but ₹0 left user's wallet right now.
-            addLedgerEntry(
-                friendId = payerFriendId,
-                amountPaise = userShare,
-                direction = LedgerDirection.YOU_OWE_THEM,
-                note = "$title (Split share owed to friend)"
-            )
+            if (userShare > 0) {
+                addLedgerEntry(
+                    friendId = payerFriendId,
+                    amountPaise = userShare,
+                    direction = LedgerDirection.YOU_OWE_THEM,
+                    note = "$title (Split share owed to friend)"
+                )
+            }
             // Note: Cash deduction happens when user actually pays the friend back via recordRepayment.
         }
     }

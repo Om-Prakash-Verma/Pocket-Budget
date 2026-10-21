@@ -1,5 +1,6 @@
 package com.ghostpocket.app.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,13 +41,37 @@ fun DashboardScreen(
     onSelectMonth: (SelectedMonth) -> Unit = {},
     onAddClick: () -> Unit,
     onSetBudgetClick: () -> Unit,
+    onSetCategoryBudget: (category: String, budgetPaise: Long) -> Unit = { _, _ -> },
     onManageCategoriesClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
     isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showMonthPicker by remember { mutableStateOf(false) }
+    var categoryForBudgetEdit by remember { mutableStateOf<CategorySpend?>(null) }
+
+    val daysRemaining = remember(selectedMonth) {
+        val cal = java.util.Calendar.getInstance()
+        if (selectedMonth.isCurrentMonth) {
+            val totalDays = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            val today = cal.get(java.util.Calendar.DAY_OF_MONTH)
+            (totalDays - today + 1).coerceAtLeast(1)
+        } else {
+            val calMonth = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.YEAR, selectedMonth.year)
+                set(java.util.Calendar.MONTH, selectedMonth.month - 1)
+            }
+            calMonth.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+        }
+    }
+
+    val dailySafePaise = remember(summary.remainingBudgetPaise, daysRemaining) {
+        if (summary.initialBudgetPaise > 0L) {
+            (summary.remainingBudgetPaise / daysRemaining).coerceAtLeast(0L)
+        } else null
+    }
 
     if (showMonthPicker) {
         MonthPickerDialog(
@@ -52,6 +79,17 @@ fun DashboardScreen(
             creationMonth = creationMonth,
             onMonthSelected = onSelectMonth,
             onDismiss = { showMonthPicker = false }
+        )
+    }
+
+    categoryForBudgetEdit?.let { spend ->
+        QuickCategoryBudgetDialog(
+            spend = spend,
+            monthLabel = selectedMonth.label,
+            onDismiss = { categoryForBudgetEdit = null },
+            onSave = { newBudget ->
+                onSetCategoryBudget(spend.category, newBudget)
+            }
         )
     }
 
@@ -247,19 +285,53 @@ fun DashboardScreen(
                             )
                         }
 
-                        // Budget quick pill
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { onSetBudgetClick() }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (summary.initialBudgetPaise > 0L) "Edit Budget ✏️" else "+ Set Budget",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            // Share Month Summary Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable {
+                                        val shareText = "👻 *GhostPocket • ${selectedMonth.label} Summary*\n" +
+                                                "💰 *Net Balance:* ${MoneyUtils.formatPaiseToInr(summary.balancePaise)}\n" +
+                                                "📈 *Income:* ${MoneyUtils.formatPaiseToInr(summary.totalIncomePaise)}\n" +
+                                                "📉 *Spent:* ${MoneyUtils.formatPaiseToInr(summary.totalExpensePaise)}\n" +
+                                                (if (summary.initialBudgetPaise > 0L) "🎯 *Budget Left:* ${MoneyUtils.formatPaiseToInr(summary.remainingBudgetPaise)}\n" else "") +
+                                                (if (dailySafePaise != null && dailySafePaise > 0L) "⏱️ *Safe to spend:* ${MoneyUtils.formatPaiseToInr(dailySafePaise)}/day ($daysRemaining days left)\n" else "") +
+                                                "\n_Tracked with GhostPocket ✨_"
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                            type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share ${selectedMonth.label} Summary"))
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "Share 📤",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            // Budget quick pill
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { onSetBudgetClick() }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (summary.initialBudgetPaise > 0L) "Edit Budget ✏️" else "+ Set Budget",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 
@@ -307,6 +379,39 @@ fun DashboardScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+
+                        // Daily Safe-to-Spend Pill
+                        Spacer(modifier = Modifier.height(10.dp))
+                        val isOverBudget = summary.remainingBudgetPaise < 0
+                        Surface(
+                            color = if (!isOverBudget) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = if (!isOverBudget) "🎯" else "⚠️", fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (!isOverBudget) "Safe to spend ($daysRemaining days left)" else "Monthly allowance exceeded!",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (!isOverBudget) Color(0xFF10B981) else Color(0xFFEF4444)
+                                    )
+                                }
+                                Text(
+                                    text = if (!isOverBudget) "${MoneyUtils.formatPaiseToInr(dailySafePaise ?: 0L)} / day" else "₹0 / day",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (!isOverBudget) Color(0xFF10B981) else Color(0xFFEF4444)
+                                )
+                            }
                         }
                     }
                 }
@@ -453,7 +558,7 @@ fun DashboardScreen(
                 ) { spend ->
                     BentoCategoryBudgetCard(
                         spend = spend,
-                        onClick = onManageCategoriesClick
+                        onClick = { categoryForBudgetEdit = spend }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -678,4 +783,75 @@ fun BentoTransactionItem(
             }
         }
     }
+}
+
+@Composable
+fun QuickCategoryBudgetDialog(
+    spend: CategorySpend,
+    monthLabel: String,
+    onDismiss: () -> Unit,
+    onSave: (budgetPaise: Long) -> Unit
+) {
+    var budgetInput by remember(spend) {
+        mutableStateOf(if (spend.allocatedBudgetPaise > 0L) (spend.allocatedBudgetPaise / 100).toString() else "")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "${spend.category} Budget 🏷️",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Set monthly spending allowance for ${spend.category} in $monthLabel.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = budgetInput,
+                    onValueChange = { input ->
+                        if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
+                            budgetInput = input
+                        }
+                    },
+                    label = { Text("Allocated Budget ₹") },
+                    placeholder = { Text("e.g. 1500 (or 50*30)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val mathPreview = remember(budgetInput) { MoneyUtils.formatEvaluatedPreview(budgetInput) }
+                if (mathPreview != null) {
+                    Text(
+                        text = mathPreview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            ClayButton(
+                text = "Save Budget ✨",
+                onClick = {
+                    val budgetPaise = MoneyUtils.parseToPaise(budgetInput) ?: 0L
+                    onSave(budgetPaise)
+                    onDismiss()
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

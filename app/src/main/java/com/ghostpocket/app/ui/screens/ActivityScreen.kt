@@ -38,15 +38,21 @@ fun ActivityScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilterType by remember { mutableStateOf<TransactionType?>(null) }
+    var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
     var sortByAmount by remember { mutableStateOf(false) }
 
-    val filteredList = remember(transactions, searchQuery, selectedFilterType, sortByAmount) {
+    val uniqueCategories = remember(transactions) {
+        transactions.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
+    val filteredList = remember(transactions, searchQuery, selectedFilterType, selectedCategoryFilter, sortByAmount) {
         transactions.filter { tx ->
             val matchesQuery = searchQuery.isBlank() ||
                     tx.category.contains(searchQuery, ignoreCase = true) ||
                     (tx.note?.contains(searchQuery, ignoreCase = true) == true)
             val matchesType = selectedFilterType == null || tx.type == selectedFilterType
-            matchesQuery && matchesType
+            val matchesCat = selectedCategoryFilter == null || tx.category.equals(selectedCategoryFilter, ignoreCase = true)
+            matchesQuery && matchesType && matchesCat
         }.let { list ->
             if (sortByAmount) {
                 list.sortedByDescending { it.amountPaise }
@@ -150,30 +156,46 @@ fun ActivityScreen(
         ) {
             item {
                 ClayFilterPill(
-                    label = "All Spells",
-                    isSelected = selectedFilterType == null,
-                    onClick = { selectedFilterType = null }
+                    label = "All (${filteredList.size})",
+                    isSelected = selectedFilterType == null && selectedCategoryFilter == null,
+                    onClick = {
+                        selectedFilterType = null
+                        selectedCategoryFilter = null
+                    }
                 )
             }
             item {
                 ClayFilterPill(
-                    label = "Vanished 💸",
+                    label = "Expenses 🔴",
                     isSelected = selectedFilterType == TransactionType.EXPENSE,
-                    onClick = { selectedFilterType = TransactionType.EXPENSE }
+                    onClick = {
+                        selectedFilterType = if (selectedFilterType == TransactionType.EXPENSE) null else TransactionType.EXPENSE
+                    }
                 )
             }
             item {
                 ClayFilterPill(
-                    label = "Summoned 🪙",
+                    label = "Income 🟢",
                     isSelected = selectedFilterType == TransactionType.INCOME,
-                    onClick = { selectedFilterType = TransactionType.INCOME }
+                    onClick = {
+                        selectedFilterType = if (selectedFilterType == TransactionType.INCOME) null else TransactionType.INCOME
+                    }
                 )
             }
             item {
                 ClayFilterPill(
-                    label = if (sortByAmount) "Heaviest Loot 💰" else "Latest First ⏱️",
+                    label = if (sortByAmount) "Heaviest ₹ 💰" else "Latest First ⏱️",
                     isSelected = sortByAmount,
                     onClick = { sortByAmount = !sortByAmount }
+                )
+            }
+            items(uniqueCategories) { cat ->
+                ClayFilterPill(
+                    label = cat,
+                    isSelected = selectedCategoryFilter == cat,
+                    onClick = {
+                        selectedCategoryFilter = if (selectedCategoryFilter == cat) null else cat
+                    }
                 )
             }
         }

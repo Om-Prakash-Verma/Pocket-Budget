@@ -36,7 +36,7 @@ fun SettingsScreen(
     currentThemeMode: AppThemeMode = AppThemeMode.DARK,
     onThemeChange: (AppThemeMode) -> Unit = {},
     isCheckingForUpdate: Boolean = false,
-    currentVersionName: String = "1.4.9",
+    currentVersionName: String = "1.5.0",
     currentVersionCode: Int = 12,
     onCheckForUpdates: () -> Unit = {},
     onReplayTour: () -> Unit = {},

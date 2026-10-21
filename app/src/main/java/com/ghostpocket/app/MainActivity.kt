@@ -419,9 +419,9 @@ fun MainContent(
                         SplitBillScreen(
                             friends = uiState.rawFriends,
                             onBack = { isSplitBillOpen = false },
-                            onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds ->
+                            onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds, customShares ->
                                 val defaultCat = uiState.categories.firstOrNull()?.name ?: "Split"
-                                viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, defaultCat)
+                                viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, defaultCat, customShares)
                                 isSplitBillOpen = false
                             }
                         )
@@ -492,6 +492,9 @@ fun MainContent(
                                         onSelectMonth = { viewModel.selectMonth(it) },
                                         onAddClick = { isAddTransactionOpen = true },
                                         onSetBudgetClick = { showSetBudgetDialog = true },
+                                        onSetCategoryBudget = { cat, budgetPaise ->
+                                            viewModel.editCategory(cat, cat, budgetPaise, uiState.selectedMonth.monthKey)
+                                        },
                                         onManageCategoriesClick = { isSettingsOpen = true },
                                         onSettingsClick = { isSettingsOpen = true },
                                         onToggleTheme = onToggleTheme,

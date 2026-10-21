@@ -227,6 +227,40 @@ fun AddTransactionBottomSheet(
                     textFieldValue = amountInput,
                     onValueChange = { amountInput = it }
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Quick Amount Preset Chips (+₹10, +₹20, +₹50, +₹100, +₹500)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(10, 20, 50, 100, 500).forEach { preset ->
+                        val chipShape = RoundedCornerShape(10.dp)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(chipShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                                .clickable {
+                                    val currentVal = MoneyUtils.parseToPaise(amountInput.text) ?: 0L
+                                    val newVal = (currentVal / 100) + preset
+                                    val newStr = newVal.toString()
+                                    amountInput = TextFieldValue(newStr, selection = TextRange(newStr.length))
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "+₹$preset",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
