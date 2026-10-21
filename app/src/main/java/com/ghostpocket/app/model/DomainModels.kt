@@ -20,11 +20,11 @@ data class MonthlySummary(
     val allTimeExpensePaise: Long = totalExpensePaise
 ) {
     /**
-     * Net balance: User's set budget + all-time income - all-time expenses.
-     * Represents all remaining money across all time, independent of historical month views.
+     * Net balance: all-time income - all-time expenses.
+     * Represents all true remaining cash across all time, independent of historical month views.
      */
     val balancePaise: Long
-        get() = initialBudgetPaise + allTimeIncomePaise - allTimeExpensePaise
+        get() = allTimeIncomePaise - allTimeExpensePaise
 
     val remainingBudgetPaise: Long
         get() = initialBudgetPaise - totalExpensePaise

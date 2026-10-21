@@ -92,7 +92,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.5", 8)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.6", 9)
     }
 
     fun selectPreviousMonth() {
@@ -172,9 +172,22 @@ class GhostPocketViewModel(
 
         val monthExpenses = monthTxs.filter { it.type == TransactionType.EXPENSE }
         val totalExpense = monthExpenses.sumOf { it.amountPaise }
-        val catBudgetMap = categories.associate { it.name to it.budgetPaise }
         val groupMap = monthExpenses.groupBy { it.category }
         val allCatNames = (categories.map { it.name } + groupMap.keys).distinct()
+
+        // Month-scoped category budget resolution:
+        // 1. Exact match for current selected month: cat_Food_2026-10
+        // 2. Fallback to latest earlier configured month: cat_Food_2026-09
+        // 3. Fallback to category baseline: CategoryEntity.budgetPaise
+        val catBudgetMap = allCatNames.associateWith { catName ->
+            allBudgets.find { it.id == "cat_${catName}_${month.monthKey}" }?.budgetPaise
+                ?: allBudgets
+                    .filter { it.id.startsWith("cat_${catName}_") && it.id.removePrefix("cat_${catName}_") < month.monthKey }
+                    .maxByOrNull { it.id }
+                    ?.budgetPaise
+                ?: categories.find { it.name == catName }?.budgetPaise
+                ?: 0L
+        }
         val categorySpends = if (categories.isEmpty() && totalExpense <= 0L) {
             emptyList()
         } else {
@@ -541,9 +554,10 @@ class GhostPocketViewModel(
         }
     }
 
-    fun editCategory(oldName: String, newName: String, newBudgetPaise: Long) {
+    fun editCategory(oldName: String, newName: String, newBudgetPaise: Long, monthKey: String = "") {
+        val targetMonthKey = if (monthKey.isNotBlank()) monthKey else _selectedMonth.value.monthKey
         viewModelScope.launch {
-            repository.renameCategory(oldName, newName, newBudgetPaise)
+            repository.renameCategory(oldName, newName, newBudgetPaise, targetMonthKey)
             _userMessage.value = "Realm transformed to $newName! 🏷️✨"
             triggerSync()
         }

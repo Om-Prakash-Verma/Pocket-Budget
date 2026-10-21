@@ -29,8 +29,8 @@ class FinancialCalculationsTest {
             allTimeIncomePaise = 2500000L,   // All-time income: ₹25,000
             allTimeExpensePaise = 1200000L   // All-time expense: ₹12,000
         )
-        // All-time net balance = 10,000 + 25,000 - 12,000 = ₹23,000 = 2300000L
-        assertEquals(2300000L, summary.balancePaise)
+        // All-time net balance = 25,000 - 12,000 = ₹13,000 = 1300000L (pure cashflow, no fake budget addition)
+        assertEquals(1300000L, summary.balancePaise)
         // Selected month remaining budget = 10,000 - 5,000 = ₹5,000 = 500000L
         assertEquals(500000L, summary.remainingBudgetPaise)
     }
@@ -97,5 +97,55 @@ class FinancialCalculationsTest {
 
         // July 2026 (before any budget was set) -> returns 0L
         assertEquals(0L, resolveBudgetForMonth("2026-07"))
+    }
+
+    @Test
+    fun testMonthScopedCategoryBudgetResolution() {
+        val foodAug = UserBudgetEntity(id = "cat_Food_2026-08", budgetPaise = 300000L) // ₹3,000
+        val foodOct = UserBudgetEntity(id = "cat_Food_2026-10", budgetPaise = 600000L) // ₹6,000
+        val baselineCategories = listOf(com.ghostpocket.app.model.CategoryEntity(name = "Food", budgetPaise = 200000L))
+        val allBudgets = listOf(foodAug, foodOct)
+
+        fun resolveCatBudget(catName: String, monthKey: String): Long {
+            return allBudgets.find { it.id == "cat_${catName}_${monthKey}" }?.budgetPaise
+                ?: allBudgets
+                    .filter { it.id.startsWith("cat_${catName}_") && it.id.removePrefix("cat_${catName}_") < monthKey }
+                    .maxByOrNull { it.id }
+                    ?.budgetPaise
+                ?: baselineCategories.find { it.name == catName }?.budgetPaise
+                ?: 0L
+        }
+
+        // August 2026: explicit ₹3,000
+        assertEquals(300000L, resolveCatBudget("Food", "2026-08"))
+        // September 2026: inherits August 2026 (₹3,000), NOT October!
+        assertEquals(300000L, resolveCatBudget("Food", "2026-09"))
+        // October 2026: raised to ₹6,000
+        assertEquals(600000L, resolveCatBudget("Food", "2026-10"))
+        // November 2026: inherits October 2026 (₹6,000)
+        assertEquals(600000L, resolveCatBudget("Food", "2026-11"))
+        // July 2026: falls back to baseline category budget (₹2,000)
+        assertEquals(200000L, resolveCatBudget("Food", "2026-07"))
+    }
+
+    @Test
+    fun testSplitBillAndRepaymentCashflowReconciliation() {
+        // User pays ₹1,000 for dinner for 4 people (₹250 user's share, ₹750 owed by 3 friends)
+        var totalIncome = 500000L // Starting with ₹5,000
+        var totalExpense = 0L
+
+        // Step 1: Upfront full bill payment (₹1,000 leaves wallet)
+        totalExpense += 100000L // ₹1,000
+        val balanceAfterBill = totalIncome - totalExpense
+        assertEquals(400000L, balanceAfterBill) // Wallet has ₹4,000
+
+        // Step 2: 3 friends each repay ₹250 (recorded as income inflow)
+        totalIncome += 25000L // Friend 1
+        totalIncome += 25000L // Friend 2
+        totalIncome += 25000L // Friend 3
+
+        val finalBalance = totalIncome - totalExpense
+        // Final net wallet balance: 5,000 - 250 = ₹4,750
+        assertEquals(475000L, finalBalance)
     }
 }

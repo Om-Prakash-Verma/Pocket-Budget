@@ -63,8 +63,8 @@ interface GhostPocketRepository {
     // Categories
     val allCategories: Flow<List<CategoryEntity>>
     suspend fun addCategory(name: String, budgetPaise: Long = 0L)
-    suspend fun updateCategoryBudget(name: String, budgetPaise: Long)
-    suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long)
+    suspend fun updateCategoryBudget(name: String, budgetPaise: Long, monthKey: String = "")
+    suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long, monthKey: String = "")
     suspend fun deleteCategory(category: CategoryEntity)
     suspend fun deleteCategorySafe(category: CategoryEntity, fallbackCategory: String = "Other")
 
@@ -201,9 +201,25 @@ class GhostPocketRepositoryImpl(
         }
     }
 
-    override suspend fun updateCategoryBudget(name: String, budgetPaise: Long) {
+    override suspend fun updateCategoryBudget(name: String, budgetPaise: Long, monthKey: String) {
         val trimmed = name.trim()
         if (trimmed.isNotBlank()) {
+            val now = System.currentTimeMillis()
+            val userId = currentUserIdProvider()
+            val targetMonthKey = if (monthKey.isNotBlank()) monthKey else com.ghostpocket.app.model.SelectedMonth.current().monthKey
+
+            // 1. Save month-scoped category budget to user_settings (e.g. cat_Food_2026-10)
+            budgetDao.setBudget(
+                UserBudgetEntity(
+                    id = "cat_${trimmed}_${targetMonthKey}",
+                    budgetPaise = budgetPaise,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    userId = userId,
+                    updatedAt = now
+                )
+            )
+
+            // 2. Also keep category baseline budget updated
             val existing = categoryDao.getCategoryByName(trimmed)
             if (existing != null) {
                 categoryDao.updateBudget(trimmed, budgetPaise)
@@ -214,21 +230,21 @@ class GhostPocketRepositoryImpl(
                         iconKey = "ghost",
                         budgetPaise = budgetPaise,
                         syncStatus = SyncStatus.PENDING_UPLOAD,
-                        userId = currentUserIdProvider(),
-                        updatedAt = System.currentTimeMillis()
+                        userId = userId,
+                        updatedAt = now
                     )
                 )
             }
         }
     }
 
-    override suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long) {
+    override suspend fun renameCategory(oldName: String, newName: String, newBudgetPaise: Long, monthKey: String) {
         val trimmedOld = oldName.trim()
         val trimmedNew = newName.trim()
         if (trimmedNew.isBlank()) return
 
         if (trimmedOld.equals(trimmedNew, ignoreCase = false)) {
-            updateCategoryBudget(trimmedNew, newBudgetPaise)
+            updateCategoryBudget(trimmedNew, newBudgetPaise, monthKey)
             return
         }
 
@@ -238,18 +254,33 @@ class GhostPocketRepositoryImpl(
         // 2. Insert new category
         val oldCat = categoryDao.getCategoryByName(trimmedOld)
         val iconKey = oldCat?.iconKey ?: "ghost"
+        val now = System.currentTimeMillis()
+        val userId = currentUserIdProvider()
         categoryDao.insertCategory(
             CategoryEntity(
                 name = trimmedNew,
                 iconKey = iconKey,
                 budgetPaise = newBudgetPaise,
                 syncStatus = SyncStatus.PENDING_UPLOAD,
-                userId = currentUserIdProvider(),
-                updatedAt = System.currentTimeMillis()
+                userId = userId,
+                updatedAt = now
             )
         )
 
-        // 3. Delete or mark old category for deletion
+        // 3. Save month-scoped budget if monthKey is present
+        if (monthKey.isNotBlank()) {
+            budgetDao.setBudget(
+                UserBudgetEntity(
+                    id = "cat_${trimmedNew}_${monthKey}",
+                    budgetPaise = newBudgetPaise,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    userId = userId,
+                    updatedAt = now
+                )
+            )
+        }
+
+        // 4. Delete or mark old category for deletion
         if (oldCat != null) {
             deleteCategory(oldCat)
         }
@@ -691,6 +722,9 @@ class GhostPocketRepositoryImpl(
             LedgerDirection.THEY_OWE_YOU
         }
 
+        val friend = friendDao.getFriendById(friendId)
+        val friendName = friend?.name ?: "Friend"
+
         val entry = FriendLedgerEntity(
             id = UUID.randomUUID().toString(),
             friendId = friendId,
@@ -704,6 +738,18 @@ class GhostPocketRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         friendLedgerDao.insertLedger(entry)
+
+        // Reconcile Wallet Cashflow:
+        // When friend repays user -> Money enters user's wallet (INCOME)
+        // When user repays friend -> Money leaves user's wallet (EXPENSE)
+        val tx = TransactionEntity(
+            amountPaise = repaymentAmountPaise,
+            type = if (isRepayingToUser) TransactionType.INCOME else TransactionType.EXPENSE,
+            category = "Debt Repayment",
+            note = note ?: if (isRepayingToUser) "Repaid by $friendName" else "Repaid to $friendName",
+            userId = currentUserIdProvider()
+        )
+        addTransaction(tx)
     }
 
     override suspend fun settleFriendLedger(friendId: String) {
@@ -725,39 +771,35 @@ class GhostPocketRepositoryImpl(
         val userShare = shares.first()
 
         if (payerFriendId == null) {
+            // 1. User paid the full bill upfront. Deduct the full cash amount from wallet.
             val tx = TransactionEntity(
-                amountPaise = userShare,
+                amountPaise = totalPaise,
                 type = TransactionType.EXPENSE,
                 category = category,
-                note = "$title (Your share of ${MoneyUtils.formatPaiseToInr(totalPaise)})",
+                note = "$title (Full bill paid upfront; split with ${participantFriendIds.size} friends)",
                 userId = currentUserIdProvider()
             )
             addTransaction(tx)
 
+            // 2. Friends each owe user their share
             participantFriendIds.forEachIndexed { index, fId ->
                 val fShare = shares[index + 1]
                 addLedgerEntry(
                     friendId = fId,
                     amountPaise = fShare,
                     direction = LedgerDirection.THEY_OWE_YOU,
-                    note = "$title (Split)"
+                    note = "$title (Split share)"
                 )
             }
         } else {
+            // A friend paid upfront. User owes friend their share, but ₹0 left user's wallet right now.
             addLedgerEntry(
                 friendId = payerFriendId,
                 amountPaise = userShare,
                 direction = LedgerDirection.YOU_OWE_THEM,
-                note = "$title (Split paid by friend)"
+                note = "$title (Split share owed to friend)"
             )
-            val tx = TransactionEntity(
-                amountPaise = userShare,
-                type = TransactionType.EXPENSE,
-                category = category,
-                note = "$title (Your share)",
-                userId = currentUserIdProvider()
-            )
-            addTransaction(tx)
+            // Note: Cash deduction happens when user actually pays the friend back via recordRepayment.
         }
     }
 

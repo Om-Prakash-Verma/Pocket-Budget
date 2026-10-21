@@ -437,7 +437,7 @@ fun MainContent(
                             onManualSync = { viewModel.manualSync() },
                             onSetBudget = { showSetBudgetDialog = true },
                             onAddCategory = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) },
-                            onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise) },
+                            onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise, uiState.selectedMonth.monthKey) },
                             onDeleteCategory = { viewModel.deleteCategorySafe(it) },
                             onSignOut = {
                                 viewModel.signOut()
