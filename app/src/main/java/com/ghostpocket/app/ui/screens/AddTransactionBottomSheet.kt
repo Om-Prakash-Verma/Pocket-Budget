@@ -17,7 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.CategoryEntity
@@ -40,15 +42,14 @@ fun AddTransactionBottomSheet(
     onDelete: ((String) -> Unit)? = null
 ) {
     var amountInput by remember {
-        mutableStateOf(
-            if (transactionToEdit != null) {
-                if (transactionToEdit.amountPaise % 100 == 0L) {
-                    (transactionToEdit.amountPaise / 100).toString()
-                } else {
-                    (transactionToEdit.amountPaise / 100.0).toString()
-                }
-            } else ""
-        )
+        val initialText = if (transactionToEdit != null) {
+            if (transactionToEdit.amountPaise % 100 == 0L) {
+                (transactionToEdit.amountPaise / 100).toString()
+            } else {
+                (transactionToEdit.amountPaise / 100.0).toString()
+            }
+        } else ""
+        mutableStateOf(TextFieldValue(initialText, selection = TextRange(initialText.length)))
     }
     var selectedType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.EXPENSE) }
     var selectedCategory by remember {
@@ -192,7 +193,7 @@ fun AddTransactionBottomSheet(
                     OutlinedTextField(
                         value = amountInput,
                         onValueChange = { input ->
-                            if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
+                            if (input.text.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                 amountInput = input
                             }
                         },
@@ -208,7 +209,7 @@ fun AddTransactionBottomSheet(
                 }
 
                 // Live Calculator Result Preview (e.g. "= ₹160")
-                val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                val mathPreview = remember(amountInput.text) { MoneyUtils.formatEvaluatedPreview(amountInput.text) }
                 if (mathPreview != null) {
                     Text(
                         text = mathPreview,
@@ -223,8 +224,8 @@ fun AddTransactionBottomSheet(
 
                 // Tactile Calculator Operator Row (+, −, ×, ÷, =, ⌫)
                 CalculatorOperatorRow(
-                    currentInput = amountInput,
-                    onInputChanged = { amountInput = it }
+                    textFieldValue = amountInput,
+                    onValueChange = { amountInput = it }
                 )
             }
 
@@ -365,7 +366,7 @@ fun AddTransactionBottomSheet(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Cast / Save Button
-            val parsedPaise = MoneyUtils.parseToPaise(amountInput)
+            val parsedPaise = MoneyUtils.parseToPaise(amountInput.text)
             val effectiveCat = selectedCategory?.trim()?.takeIf { it.isNotBlank() } ?: "Uncategorized"
             val isMetadataValid = if (isCategorySelected) true else noteInput.isNotBlank()
             val canSave = parsedPaise != null && parsedPaise > 0 && isMetadataValid

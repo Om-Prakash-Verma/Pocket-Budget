@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -249,13 +251,13 @@ fun ClayIconButton(
 }
 
 /**
- * Tactile Clay Calculator Operator Row
- * Allows single-tap insertion of operators (+, −, ×, ÷), calculation (=), and backspace without switching keyboard mode.
+ * Tactile Bento Clay Calculator Bar (+, −, ×, ÷, =, ⌫)
+ * Supports TextFieldValue with explicit cursor placement directly following operators.
  */
 @Composable
 fun CalculatorOperatorRow(
-    currentInput: String,
-    onInputChanged: (String) -> Unit,
+    textFieldValue: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -264,10 +266,10 @@ fun CalculatorOperatorRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val operators = listOf(
-            "+" to " + ",
-            "−" to " - ",
-            "×" to " * ",
-            "÷" to " / "
+            "+" to "+",
+            "−" to "-",
+            "×" to "*",
+            "÷" to "/"
         )
 
         operators.forEach { (label, op) ->
@@ -275,11 +277,34 @@ fun CalculatorOperatorRow(
                 label = label,
                 modifier = Modifier.weight(1f),
                 onClick = {
-                    val trimmed = currentInput.trimEnd()
-                    if (trimmed.isNotEmpty() && !trimmed.endsWith("+") && !trimmed.endsWith("-") && !trimmed.endsWith("*") && !trimmed.endsWith("/")) {
-                        onInputChanged("$trimmed$op")
-                    } else if (trimmed.isEmpty() && label == "−") {
-                        onInputChanged("-")
+                    val text = textFieldValue.text
+                    val selStart = textFieldValue.selection.min.coerceIn(0, text.length)
+                    val selEnd = textFieldValue.selection.max.coerceIn(0, text.length)
+
+                    val before = text.substring(0, selStart)
+                    val after = text.substring(selEnd)
+
+                    // If user clicks an operator while immediately preceding char is another operator, replace it
+                    val trimmedBefore = before.trimEnd()
+                    val cleanBefore = if (trimmedBefore.isNotEmpty() &&
+                        (trimmedBefore.endsWith("+") || trimmedBefore.endsWith("-") ||
+                         trimmedBefore.endsWith("*") || trimmedBefore.endsWith("/") ||
+                         trimmedBefore.endsWith("×") || trimmedBefore.endsWith("÷"))
+                    ) {
+                        trimmedBefore.dropLast(1)
+                    } else {
+                        before
+                    }
+
+                    if (cleanBefore.isNotEmpty() || op == "-") {
+                        val newText = cleanBefore + op + after
+                        val newCursorPos = cleanBefore.length + op.length
+                        onValueChange(
+                            TextFieldValue(
+                                text = newText,
+                                selection = TextRange(newCursorPos)
+                            )
+                        )
                     }
                 }
             )
@@ -291,9 +316,14 @@ fun CalculatorOperatorRow(
             isAccent = true,
             modifier = Modifier.weight(1f),
             onClick = {
-                val evaluated = com.ghostpocket.app.model.MoneyUtils.evaluateToCleanString(currentInput)
+                val evaluated = com.ghostpocket.app.model.MoneyUtils.evaluateToCleanString(textFieldValue.text)
                 if (evaluated != null) {
-                    onInputChanged(evaluated)
+                    onValueChange(
+                        TextFieldValue(
+                            text = evaluated,
+                            selection = TextRange(evaluated.length)
+                        )
+                    )
                 }
             }
         )
@@ -303,12 +333,43 @@ fun CalculatorOperatorRow(
             label = "⌫",
             modifier = Modifier.weight(1f),
             onClick = {
-                if (currentInput.isNotEmpty()) {
-                    onInputChanged(currentInput.dropLast(1).trimEnd())
+                val text = textFieldValue.text
+                val selStart = textFieldValue.selection.min.coerceIn(0, text.length)
+                val selEnd = textFieldValue.selection.max.coerceIn(0, text.length)
+
+                if (selStart != selEnd) {
+                    val newText = text.substring(0, selStart) + text.substring(selEnd)
+                    onValueChange(
+                        TextFieldValue(
+                            text = newText,
+                            selection = TextRange(selStart)
+                        )
+                    )
+                } else if (selStart > 0) {
+                    val newText = text.substring(0, selStart - 1) + text.substring(selStart)
+                    onValueChange(
+                        TextFieldValue(
+                            text = newText,
+                            selection = TextRange(selStart - 1)
+                        )
+                    )
                 }
             }
         )
     }
+}
+
+@Composable
+fun CalculatorOperatorRow(
+    currentInput: String,
+    onInputChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    CalculatorOperatorRow(
+        textFieldValue = TextFieldValue(currentInput, selection = TextRange(currentInput.length)),
+        onValueChange = { onInputChanged(it.text) },
+        modifier = modifier
+    )
 }
 
 @Composable

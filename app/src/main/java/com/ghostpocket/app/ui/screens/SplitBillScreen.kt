@@ -15,7 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.FriendEntity
@@ -33,11 +35,11 @@ fun SplitBillScreen(
     modifier: Modifier = Modifier
 ) {
     var titleInput by remember { mutableStateOf("") }
-    var amountInput by remember { mutableStateOf("") }
+    var amountInput by remember { mutableStateOf(TextFieldValue("")) }
     var payerFriendId by remember { mutableStateOf<String?>(null) } // null = You
     val selectedFriendIds = remember { mutableStateListOf<String>() }
 
-    val parsedTotalPaise = MoneyUtils.parseToPaise(amountInput) ?: 0L
+    val parsedTotalPaise = MoneyUtils.parseToPaise(amountInput.text) ?: 0L
     val totalParticipants = selectedFriendIds.size + 1 // friends + current user
     val shares = remember(parsedTotalPaise, totalParticipants) {
         if (parsedTotalPaise > 0 && totalParticipants > 1) {
@@ -111,7 +113,7 @@ fun SplitBillScreen(
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { input ->
-                                if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
+                                if (input.text.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                     amountInput = input
                                 }
                             },
@@ -127,7 +129,7 @@ fun SplitBillScreen(
                     }
 
                     // Live Calculator Result Preview (e.g. "= ₹160")
-                    val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                    val mathPreview = remember(amountInput.text) { MoneyUtils.formatEvaluatedPreview(amountInput.text) }
                     if (mathPreview != null) {
                         Text(
                             text = mathPreview,
@@ -142,8 +144,8 @@ fun SplitBillScreen(
 
                     // Tactile Calculator Operator Row (+, −, ×, ÷, =, ⌫)
                     CalculatorOperatorRow(
-                        currentInput = amountInput,
-                        onInputChanged = { amountInput = it }
+                        textFieldValue = amountInput,
+                        onValueChange = { amountInput = it }
                     )
                 }
                 Spacer(modifier = Modifier.height(20.dp))
