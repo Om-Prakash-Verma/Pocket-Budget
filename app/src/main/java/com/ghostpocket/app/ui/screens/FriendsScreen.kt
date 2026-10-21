@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -317,11 +318,11 @@ fun BentoFriendRow(
     modifier: Modifier = Modifier
 ) {
     val net = balance.netPaise
-    val label = remember(net) {
+    val (label, labelColor) = remember(net) {
         when {
-            net > 0 -> "${MoneyUtils.formatPaiseToInr(net)} · Owes you 📜"
-            net < 0 -> "${MoneyUtils.formatPaiseToInr(kotlin.math.abs(net))} · You owe 🪙"
-            else -> "Settled ✓ (Peace restored)"
+            net > 0 -> Pair("${MoneyUtils.formatPaiseToInr(net)} · You will get 🟢", Color(0xFF10B981))
+            net < 0 -> Pair("${MoneyUtils.formatPaiseToInr(kotlin.math.abs(net))} · You will give 🔴", Color(0xFFEF4444))
+            else -> Pair("Settled ✓ (₹0)", Color.Unspecified)
         }
     }
 
@@ -362,7 +363,8 @@ fun BentoFriendRow(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = if (net != 0L) FontWeight.Bold else FontWeight.Normal,
+                        color = if (labelColor != Color.Unspecified) labelColor else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

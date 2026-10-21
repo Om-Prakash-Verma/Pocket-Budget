@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,7 +57,7 @@ fun FriendDetailScreen(
     modifier: Modifier = Modifier
 ) {
     var showAddLedgerDialog by remember { mutableStateOf(false) }
-    var showRepayDialog by remember { mutableStateOf(false) }
+    var initialDialogDirection by remember { mutableStateOf(LedgerDirection.THEY_OWE_YOU) }
     var showWhatsAppReminderDialog by remember { mutableStateOf(false) }
     var showEditFriendDialog by remember { mutableStateOf(false) }
     var showDeleteFriendConfirm by remember { mutableStateOf(false) }
@@ -142,7 +144,7 @@ fun FriendDetailScreen(
                     elevation = 6.dp
                 ) {
                     Text(
-                        text = "DEBT BALANCE 📜",
+                        text = "BALANCE WITH ${balance.friend.name.uppercase()} 📜",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.1.sp
@@ -150,16 +152,17 @@ fun FriendDetailScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     val net = balance.netPaise
-                    val (label, amount) = when {
-                        net > 0 -> Pair("They owe you gold 🪙", MoneyUtils.formatPaiseToInr(net))
-                        net < 0 -> Pair("You owe them gold 💸", MoneyUtils.formatPaiseToInr(kotlin.math.abs(net)))
-                        else -> Pair("Settled! Peace restored ✨", "₹0")
+                    val (label, amount, netColor) = when {
+                        net > 0 -> Triple("You will get (They owe you) 🪙", MoneyUtils.formatPaiseToInr(net), Color(0xFF10B981))
+                        net < 0 -> Triple("You will give (You owe them) 💸", MoneyUtils.formatPaiseToInr(kotlin.math.abs(net)), Color(0xFFEF4444))
+                        else -> Triple("Settled! No pending balance ✨", "₹0", MaterialTheme.colorScheme.onSurface)
                     }
 
                     Text(
                         text = amount,
                         style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = netColor
                     )
                     Text(
                         text = label,
@@ -167,21 +170,72 @@ fun FriendDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Mini summary breakdown: Total Gave (Red) vs Total Got (Green)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "YOU GAVE 🔴",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                            Text(
+                                text = MoneyUtils.formatPaiseToInr(balance.theyOweYouPaise),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "YOU GOT 🟢",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                            Text(
+                                text = MoneyUtils.formatPaiseToInr(balance.youOweThemPaise),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(18.dp))
 
+                    // Only two options: You Gave (Red) and You Got (Green)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         ClayButton(
-                            text = "+ Entry",
-                            onClick = { showAddLedgerDialog = true },
+                            text = "You Gave 🔴",
+                            onClick = {
+                                initialDialogDirection = LedgerDirection.THEY_OWE_YOU
+                                showAddLedgerDialog = true
+                            },
+                            customColor = Color(0xFFEF4444),
                             modifier = Modifier.weight(1f)
                         )
                         ClayButton(
-                            text = "Repay 🤝",
-                            onClick = { showRepayDialog = true },
-                            isSecondary = true,
+                            text = "You Got 🟢",
+                            onClick = {
+                                initialDialogDirection = LedgerDirection.YOU_OWE_THEM
+                                showAddLedgerDialog = true
+                            },
+                            customColor = Color(0xFF10B981),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -244,22 +298,12 @@ fun FriendDetailScreen(
 
     if (showAddLedgerDialog) {
         AddLedgerEntryDialog(
+            initialDirection = initialDialogDirection,
+            friendName = balance.friend.name,
             onDismiss = { showAddLedgerDialog = false },
             onConfirm = { paise, direction, note ->
                 onAddLedger(paise, direction, note)
                 showAddLedgerDialog = false
-            }
-        )
-    }
-
-    if (showRepayDialog) {
-        RecordRepaymentDialog(
-            friendName = balance.friend.name,
-            currentNetPaise = balance.netPaise,
-            onDismiss = { showRepayDialog = false },
-            onConfirm = { paise, isRepayingToUser ->
-                onRecordRepayment(paise, isRepayingToUser)
-                showRepayDialog = false
             }
         )
     }
@@ -411,6 +455,7 @@ fun FriendDetailScreen(
     selectedLedgerForEdit?.let { ledger ->
         EditLedgerEntryDialog(
             entry = ledger,
+            friendName = balance.friend.name,
             onDismiss = { selectedLedgerForEdit = null },
             onUpdate = { updatedLedger ->
                 onUpdateLedger(updatedLedger)
@@ -433,14 +478,15 @@ fun BentoLedgerItem(
     val dateStr = remember(entry.timestamp) {
         SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(entry.timestamp))
     }
-    val directionText = when (entry.direction) {
-        LedgerDirection.THEY_OWE_YOU -> "Lent"
-        LedgerDirection.YOU_OWE_THEM -> "Borrowed"
-    }
+    val isGave = entry.direction == LedgerDirection.THEY_OWE_YOU
+    val directionText = if (isGave) "You Gave" else "You Got"
+    val accentColor = if (isGave) Color(0xFFEF4444) else Color(0xFF10B981)
+    val badgeBg = if (isGave) Color(0xFFEF4444).copy(alpha = 0.14f) else Color(0xFF10B981).copy(alpha = 0.14f)
+    val sign = if (isGave) "− " else "+ "
 
     ClayCard(
         modifier = modifier.fillMaxWidth(),
-        shapeRadius = 16.dp,
+        shapeRadius = 18.dp,
         elevation = 2.dp,
         onClick = onClick
     ) {
@@ -449,23 +495,63 @@ fun BentoLedgerItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = entry.note ?: directionText,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "$directionText · $dateStr",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                // Direction indicator bubble
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(badgeBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isGave) "🔴" else "🟢",
+                        fontSize = 14.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = entry.note?.takeIf { it.isNotBlank() } ?: directionText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = badgeBg
+                        ) {
+                            Text(
+                                text = directionText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = accentColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "· $dateStr",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
+            // Amount: RED for Gave, GREEN for Got!
             Text(
-                text = MoneyUtils.formatPaiseToInr(entry.amountPaise),
+                text = "$sign${MoneyUtils.formatPaiseToInr(entry.amountPaise)}",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold,
+                color = accentColor
             )
         }
     }
@@ -473,18 +559,23 @@ fun BentoLedgerItem(
 
 @Composable
 fun AddLedgerEntryDialog(
+    initialDirection: LedgerDirection = LedgerDirection.THEY_OWE_YOU,
+    friendName: String = "Friend",
     onDismiss: () -> Unit,
     onConfirm: (amountPaise: Long, direction: LedgerDirection, note: String?) -> Unit
 ) {
     var amountInput by remember { mutableStateOf("") }
-    var selectedDirection by remember { mutableStateOf(LedgerDirection.THEY_OWE_YOU) }
+    var selectedDirection by remember(initialDirection) { mutableStateOf(initialDirection) }
     var noteInput by remember { mutableStateOf("") }
+
+    val isGave = selectedDirection == LedgerDirection.THEY_OWE_YOU
+    val themeColor = if (isGave) Color(0xFFEF4444) else Color(0xFF10B981)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Add Debt Entry 📜",
+                text = if (isGave) "You Gave $friendName 🔴" else "You Got from $friendName 🟢",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -500,24 +591,25 @@ fun AddLedgerEntryDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(
-                        LedgerDirection.THEY_OWE_YOU to "You Lent 🪙",
-                        LedgerDirection.YOU_OWE_THEM to "You Borrowed 💸"
+                        LedgerDirection.THEY_OWE_YOU to "You Gave 🔴",
+                        LedgerDirection.YOU_OWE_THEM to "You Got 🟢"
                     ).forEach { (dir, label) ->
                         val isSelected = selectedDirection == dir
+                        val activeColor = if (dir == LedgerDirection.THEY_OWE_YOU) Color(0xFFEF4444) else Color(0xFF10B981)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .background(if (isSelected) activeColor else Color.Transparent)
                                 .clickable { selectedDirection = dir }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -531,9 +623,10 @@ fun AddLedgerEntryDialog(
                     elevation = 2.dp
                 ) {
                     Text(
-                        text = "AMOUNT",
+                        text = if (isGave) "AMOUNT GIVEN" else "AMOUNT RECEIVED",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = themeColor,
+                        fontWeight = FontWeight.Bold,
                         letterSpacing = 1.1.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -542,7 +635,7 @@ fun AddLedgerEntryDialog(
                             text = "₹",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = themeColor
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         OutlinedTextField(
@@ -569,7 +662,7 @@ fun AddLedgerEntryDialog(
                             text = mathPreview,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = themeColor,
                             modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                         )
                     }
@@ -580,8 +673,8 @@ fun AddLedgerEntryDialog(
                 OutlinedTextField(
                     value = noteInput,
                     onValueChange = { noteInput = it },
-                    label = { Text("Spell Note") },
-                    placeholder = { Text("e.g. Cinema ticket, dinner, metro...") },
+                    label = { Text("Note / Description") },
+                    placeholder = { Text(if (isGave) "e.g. Chai, petrol, movie ticket..." else "e.g. Dinner share, repaid via UPI...") },
                     shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -591,7 +684,8 @@ fun AddLedgerEntryDialog(
         confirmButton = {
             val paise = MoneyUtils.parseToPaise(amountInput)
             ClayButton(
-                text = "Cast Spell ✨",
+                text = if (isGave) "Confirm Gave 🔴" else "Confirm Got 🟢",
+                customColor = themeColor,
                 enabled = paise != null && paise > 0,
                 onClick = {
                     if (paise != null && paise > 0) {
@@ -801,6 +895,7 @@ fun WhatsAppReminderDialog(
 @Composable
 fun EditLedgerEntryDialog(
     entry: FriendLedgerEntity,
+    friendName: String = "Friend",
     onDismiss: () -> Unit,
     onUpdate: (FriendLedgerEntity) -> Unit,
     onDelete: (String) -> Unit
@@ -815,11 +910,14 @@ fun EditLedgerEntryDialog(
     var noteInput by remember(entry) { mutableStateOf(entry.note ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    val isGave = selectedDirection == LedgerDirection.THEY_OWE_YOU
+    val themeColor = if (isGave) Color(0xFFEF4444) else Color(0xFF10B981)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Edit Debt Spell 📜",
+                text = if (isGave) "Edit: You Gave $friendName 🔴" else "Edit: You Got from $friendName 🟢",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -835,24 +933,25 @@ fun EditLedgerEntryDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(
-                        LedgerDirection.THEY_OWE_YOU to "You Lent 🪙",
-                        LedgerDirection.YOU_OWE_THEM to "You Borrowed 💸"
+                        LedgerDirection.THEY_OWE_YOU to "You Gave 🔴",
+                        LedgerDirection.YOU_OWE_THEM to "You Got 🟢"
                     ).forEach { (dir, label) ->
                         val isSelected = selectedDirection == dir
+                        val activeColor = if (dir == LedgerDirection.THEY_OWE_YOU) Color(0xFFEF4444) else Color(0xFF10B981)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .background(if (isSelected) activeColor else Color.Transparent)
                                 .clickable { selectedDirection = dir }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -866,9 +965,10 @@ fun EditLedgerEntryDialog(
                     elevation = 2.dp
                 ) {
                     Text(
-                        text = "AMOUNT",
+                        text = if (isGave) "AMOUNT GIVEN" else "AMOUNT RECEIVED",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = themeColor,
+                        fontWeight = FontWeight.Bold,
                         letterSpacing = 1.1.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -877,7 +977,7 @@ fun EditLedgerEntryDialog(
                             text = "₹",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = themeColor
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         OutlinedTextField(
@@ -904,7 +1004,7 @@ fun EditLedgerEntryDialog(
                             text = mathPreview,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = themeColor,
                             modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                         )
                     }
@@ -915,8 +1015,8 @@ fun EditLedgerEntryDialog(
                 OutlinedTextField(
                     value = noteInput,
                     onValueChange = { noteInput = it },
-                    label = { Text("Spell Note") },
-                    placeholder = { Text("e.g. Cinema ticket, dinner, metro...") },
+                    label = { Text("Note / Description") },
+                    placeholder = { Text(if (isGave) "e.g. Chai, petrol, movie ticket..." else "e.g. Dinner share, repaid via UPI...") },
                     shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -934,6 +1034,7 @@ fun EditLedgerEntryDialog(
                 }
                 ClayButton(
                     text = "Save Changes ✨",
+                    customColor = themeColor,
                     enabled = paise != null && paise > 0,
                     onClick = {
                         if (paise != null && paise > 0) {

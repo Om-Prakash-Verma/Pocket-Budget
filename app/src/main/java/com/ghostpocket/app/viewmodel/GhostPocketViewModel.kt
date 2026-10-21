@@ -104,7 +104,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.8", 11)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.9", 12)
     }
 
     fun selectPreviousMonth() {
@@ -533,7 +533,7 @@ class GhostPocketViewModel(
     fun addLedgerEntry(friendId: String, amountPaise: Long, direction: LedgerDirection, note: String?) {
         viewModelScope.launch {
             repository.addLedgerEntry(friendId, amountPaise, direction, note)
-            _userMessage.value = if (direction == LedgerDirection.THEY_OWE_YOU) "Debt spell cast! 📜✨" else "You owe them gold! 🪙"
+            _userMessage.value = if (direction == LedgerDirection.THEY_OWE_YOU) "Recorded: You Gave 🔴" else "Recorded: You Got 🟢"
         }
     }
 

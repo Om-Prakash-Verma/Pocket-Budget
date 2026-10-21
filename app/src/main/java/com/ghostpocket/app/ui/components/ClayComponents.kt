@@ -104,7 +104,8 @@ fun ClayButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isSecondary: Boolean = false,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    customColor: Color? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -112,9 +113,17 @@ fun ClayButton(
 
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
-    val bgBrush = remember(enabled, isSecondary, isDark) {
+    val bgBrush = remember(enabled, isSecondary, isDark, customColor) {
         when {
             !enabled -> Brush.verticalGradient(listOf(Color(0xFF555562), Color(0xFF3F3F4A)))
+            customColor != null -> {
+                val darker = customColor.copy(
+                    red = (customColor.red * 0.82f).coerceIn(0f, 1f),
+                    green = (customColor.green * 0.82f).coerceIn(0f, 1f),
+                    blue = (customColor.blue * 0.82f).coerceIn(0f, 1f)
+                )
+                Brush.verticalGradient(listOf(customColor, darker))
+            }
             isSecondary -> {
                 if (isDark) Brush.verticalGradient(listOf(Color(0xFF1D1D25), Color(0xFF131318)))
                 else Brush.verticalGradient(listOf(Color(0xFFF0F0F5), Color(0xFFE4E4EB)))
@@ -129,6 +138,7 @@ fun ClayButton(
 
     val textColor = when {
         !enabled -> Color(0xFF888894)
+        customColor != null -> Color.White
         isSecondary -> if (isDark) Color(0xFFEDEDF2) else Color(0xFF1A1A1E)
         else -> if (isDark) Color(0xFF0C0C0E) else Color(0xFFFFFFFF)
     }

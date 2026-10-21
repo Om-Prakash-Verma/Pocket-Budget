@@ -70,12 +70,12 @@ fun AppTourDialog(
             ),
             TourStep(
                 icon = "🍕",
-                title = "Split Bills & Ledgers",
-                subtitle = "Fair-Share Math & Automatic Cashflow",
+                title = "Friends: Gave & Got 🤝",
+                subtitle = "Crystal-Clear Debt Tracking",
                 highlights = listOf(
+                    "Only two simple options: You Gave 🔴 (Red) and You Got 🟢 (Green).",
                     "Split bills with friends with accurate per-person division.",
-                    "Paying upfront tracks the debt without premature deductions.",
-                    "Recording a friend's repayment automatically restores your cash balance."
+                    "Recording Got immediately balances debts without confusion."
                 ),
                 badge = "FRIENDS"
             ),
