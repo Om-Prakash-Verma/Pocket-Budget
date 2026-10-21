@@ -30,9 +30,12 @@ fun DashboardScreen(
     summary: MonthlySummary,
     categorySpends: List<CategorySpend>,
     selectedMonth: SelectedMonth = SelectedMonth.current(),
+    creationMonth: SelectedMonth = SelectedMonth.current(),
+    canSelectPreviousMonth: Boolean = true,
     onPreviousMonth: () -> Unit = {},
     onNextMonth: () -> Unit = {},
     onCurrentMonth: () -> Unit = {},
+    onSelectMonth: (SelectedMonth) -> Unit = {},
     onAddClick: () -> Unit,
     onSetBudgetClick: () -> Unit,
     onManageCategoriesClick: () -> Unit = {},
@@ -41,6 +44,17 @@ fun DashboardScreen(
     isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var showMonthPicker by remember { mutableStateOf(false) }
+
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            currentSelectedMonth = selectedMonth,
+            creationMonth = creationMonth,
+            onMonthSelected = onSelectMonth,
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+
     // Dynamic mood based on budget health!
     val ghostMood = remember(summary) {
         when {
@@ -148,12 +162,13 @@ fun DashboardScreen(
                     ) {
                         IconButton(
                             onClick = onPreviousMonth,
+                            enabled = canSelectPreviousMonth,
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ArrowBack,
                                 contentDescription = "Previous Month",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = if (canSelectPreviousMonth) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                             )
                         }
 
@@ -161,7 +176,7 @@ fun DashboardScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { onCurrentMonth() }
+                                .clickable { showMonthPicker = true }
                                 .padding(horizontal = 12.dp, vertical = 2.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -176,13 +191,13 @@ fun DashboardScreen(
                             }
                             if (selectedMonth.isCurrentMonth) {
                                 Text(
-                                    text = "Current Month",
+                                    text = "Current Month • Tap to change",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             } else {
                                 Text(
-                                    text = "Tap to jump to Current",
+                                    text = "Tap to pick month / jump",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold

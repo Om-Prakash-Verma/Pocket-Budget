@@ -53,7 +53,11 @@ data class CategorySpend(
 data class SelectedMonth(
     val year: Int,
     val month: Int // 1 to 12
-) {
+) : Comparable<SelectedMonth> {
+    override fun compareTo(other: SelectedMonth): Int {
+        return if (year != other.year) year.compareTo(other.year) else month.compareTo(other.month)
+    }
+
     val monthKey: String
         get() = String.format(java.util.Locale.US, "%04d-%02d", year, month)
 
@@ -105,6 +109,15 @@ data class SelectedMonth(
         fun current(): SelectedMonth {
             val now = java.util.Calendar.getInstance()
             return SelectedMonth(now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH) + 1)
+        }
+
+        fun fromMonthKey(monthKey: String): SelectedMonth {
+            return try {
+                val parts = monthKey.split("-")
+                SelectedMonth(parts[0].toInt(), parts[1].toInt())
+            } catch (e: Exception) {
+                current()
+            }
         }
     }
 }

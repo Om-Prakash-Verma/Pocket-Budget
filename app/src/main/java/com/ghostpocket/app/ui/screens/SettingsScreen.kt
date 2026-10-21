@@ -36,9 +36,10 @@ fun SettingsScreen(
     currentThemeMode: AppThemeMode = AppThemeMode.DARK,
     onThemeChange: (AppThemeMode) -> Unit = {},
     isCheckingForUpdate: Boolean = false,
-    currentVersionName: String = "1.4.7",
-    currentVersionCode: Int = 10,
+    currentVersionName: String = "1.4.8",
+    currentVersionCode: Int = 11,
     onCheckForUpdates: () -> Unit = {},
+    onReplayTour: () -> Unit = {},
     onBack: () -> Unit,
     onManualSync: () -> Unit,
     onSetBudget: () -> Unit,
@@ -281,6 +282,36 @@ fun SettingsScreen(
                             }
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // BENTO CELL: App Tour & Magic Guide
+            item {
+                ClayCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shapeRadius = 24.dp,
+                    elevation = 6.dp
+                ) {
+                    Text(
+                        text = "App Tour & Feature Guide 🪄",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Revisit the enchanted guide to explore all features, calculator tricks, split bills, and privacy magic.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    ClayButton(
+                        text = "Replay App Tour 🪄",
+                        onClick = onReplayTour,
+                        isSecondary = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))

@@ -19,23 +19,35 @@ data class GhostPocketUiState(
     val userBudget: UserBudgetEntity? = null,
     val allBudgets: List<UserBudgetEntity> = emptyList(),
     val selectedMonth: SelectedMonth = SelectedMonth.current(),
+    val creationMonth: SelectedMonth = SelectedMonth.current(),
     val isSyncing: Boolean = false,
     val isInitialDataFetching: Boolean = false,
     val userMessage: String? = null,
     val isAuthenticated: Boolean = false,
     val authLoading: Boolean = false,
     val authError: String? = null
-)
+) {
+    val canSelectPreviousMonth: Boolean
+        get() = selectedMonth > creationMonth
+}
 
 class GhostPocketViewModel(
     private val repository: GhostPocketRepository,
     private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
     private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
+    private val context: android.content.Context? = null,
     private val triggerSync: () -> Unit
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SelectedMonth.current())
     val selectedMonth: StateFlow<SelectedMonth> = _selectedMonth.asStateFlow()
+
+    private val _creationMonth = MutableStateFlow(
+        context?.let { com.ghostpocket.app.util.AppPreferences.getAccountCreationMonthKey(it) }?.let {
+            SelectedMonth.fromMonthKey(it)
+        } ?: SelectedMonth.current()
+    )
+    val creationMonth: StateFlow<SelectedMonth> = _creationMonth.asStateFlow()
 
     // In-App Update States
     val availableUpdate = MutableStateFlow<com.ghostpocket.app.update.AppUpdateInfo?>(null)
@@ -92,11 +104,13 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.7", 10)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.4.8", 11)
     }
 
     fun selectPreviousMonth() {
-        _selectedMonth.value = _selectedMonth.value.previous()
+        if (_selectedMonth.value > _creationMonth.value) {
+            _selectedMonth.value = _selectedMonth.value.previous()
+        }
     }
 
     fun selectNextMonth() {
@@ -105,6 +119,12 @@ class GhostPocketViewModel(
 
     fun selectCurrentMonth() {
         _selectedMonth.value = SelectedMonth.current()
+    }
+
+    fun selectMonth(month: SelectedMonth) {
+        if (month >= _creationMonth.value) {
+            _selectedMonth.value = month
+        }
     }
 
     private val _userMessage = MutableStateFlow<String?>(null)
@@ -139,6 +159,18 @@ class GhostPocketViewModel(
         val allTxs = state.allTransactions
         val categories = state.categories
         val allBudgets = state.allBudgets
+
+        if (context != null && com.ghostpocket.app.util.AppPreferences.getAccountCreationMonthKey(context) == null) {
+            val earliestTimestamp = allTxs.minOfOrNull { it.timestamp }
+            val determinedCreationMonth = if (earliestTimestamp != null) {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = earliestTimestamp }
+                SelectedMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
+            } else {
+                SelectedMonth.current()
+            }
+            com.ghostpocket.app.util.AppPreferences.setAccountCreationMonthKey(context, determinedCreationMonth.monthKey)
+            _creationMonth.value = determinedCreationMonth
+        }
 
         // Month-scoped budget resolution:
         // 1. Exact match for current selected month (e.g. "2026-10")
@@ -223,6 +255,8 @@ class GhostPocketViewModel(
         state.copy(authError = err)
     }.combine(_isInitialDataFetching) { state, fetching ->
         state.copy(isInitialDataFetching = fetching)
+    }.combine(_creationMonth) { state, creation ->
+        state.copy(creationMonth = creation)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -598,12 +632,13 @@ class GhostPocketViewModelFactory(
     private val repository: GhostPocketRepository,
     private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
     private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
+    private val context: android.content.Context? = null,
     private val triggerSync: () -> Unit
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(GhostPocketViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return GhostPocketViewModel(repository, d1ApiClient, updateManager, triggerSync) as T
+            return GhostPocketViewModel(repository, d1ApiClient, updateManager, context, triggerSync) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

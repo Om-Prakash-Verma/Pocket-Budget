@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: GhostPocketViewModel by viewModels {
         val app = application as GhostPocketApp
-        GhostPocketViewModelFactory(app.repository, app.d1ApiClient, app.updateManager) {
+        GhostPocketViewModelFactory(app.repository, app.d1ApiClient, app.updateManager, applicationContext) {
             SyncWorker.scheduleSync(applicationContext)
         }
     }
@@ -152,6 +152,7 @@ fun MainContent(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? ComponentActivity
+    var showAppTour by remember { mutableStateOf(!com.ghostpocket.app.util.AppPreferences.hasCompletedTour(context)) }
 
     // Contact Picker Launcher for directly adding friends from device contacts
     val contactPickerLauncher = rememberLauncherForActivityResult(
@@ -196,6 +197,10 @@ fun MainContent(
     // System Back Handler: Prevents accidental app closing and cleanly navigates back
     BackHandler(enabled = true) {
         when {
+            showAppTour -> {
+                com.ghostpocket.app.util.AppPreferences.setTourCompleted(context, true)
+                showAppTour = false
+            }
             availableUpdate != null && !availableUpdate!!.isMandatory -> viewModel.dismissUpdateDialog()
             transactionToEdit != null -> transactionToEdit = null
             isAddTransactionOpen -> isAddTransactionOpen = false
@@ -433,6 +438,10 @@ fun MainContent(
                             currentVersionName = currentVersionName,
                             currentVersionCode = currentVersionCode,
                             onCheckForUpdates = { viewModel.checkForUpdates(isManual = true) },
+                            onReplayTour = {
+                                isSettingsOpen = false
+                                showAppTour = true
+                            },
                             onBack = { isSettingsOpen = false },
                             onManualSync = { viewModel.manualSync() },
                             onSetBudget = { showSetBudgetDialog = true },
@@ -475,9 +484,12 @@ fun MainContent(
                                         summary = uiState.summary,
                                         categorySpends = uiState.categorySpends,
                                         selectedMonth = uiState.selectedMonth,
+                                        creationMonth = uiState.creationMonth,
+                                        canSelectPreviousMonth = uiState.canSelectPreviousMonth,
                                         onPreviousMonth = { viewModel.selectPreviousMonth() },
                                         onNextMonth = { viewModel.selectNextMonth() },
                                         onCurrentMonth = { viewModel.selectCurrentMonth() },
+                                        onSelectMonth = { viewModel.selectMonth(it) },
                                         onAddClick = { isAddTransactionOpen = true },
                                         onSetBudgetClick = { showSetBudgetDialog = true },
                                         onManageCategoriesClick = { isSettingsOpen = true },
@@ -863,6 +875,20 @@ fun MainContent(
             onInstall = { apkFile -> viewModel.installApk(apkFile) },
             onCancelDownload = { viewModel.cancelUpdateDownload() },
             onDismiss = { viewModel.dismissUpdateDialog() }
+        )
+    }
+
+    // First-Time App Tour Dialog
+    if (showAppTour) {
+        com.ghostpocket.app.ui.components.AppTourDialog(
+            onDismiss = {
+                com.ghostpocket.app.util.AppPreferences.setTourCompleted(context, true)
+                showAppTour = false
+            },
+            onComplete = {
+                com.ghostpocket.app.util.AppPreferences.setTourCompleted(context, true)
+                showAppTour = false
+            }
         )
     }
 }
