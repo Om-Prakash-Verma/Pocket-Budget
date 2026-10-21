@@ -36,8 +36,8 @@ fun SettingsScreen(
     currentThemeMode: AppThemeMode = AppThemeMode.DARK,
     onThemeChange: (AppThemeMode) -> Unit = {},
     isCheckingForUpdate: Boolean = false,
-    currentVersionName: String = "1.4.6",
-    currentVersionCode: Int = 9,
+    currentVersionName: String = "1.4.7",
+    currentVersionCode: Int = 10,
     onCheckForUpdates: () -> Unit = {},
     onBack: () -> Unit,
     onManualSync: () -> Unit,
@@ -436,7 +436,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = newCatBudget,
                         onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                            if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                 newCatBudget = input
                             }
                         },
@@ -446,6 +446,16 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    val newCatMathPreview = remember(newCatBudget) { MoneyUtils.formatEvaluatedPreview(newCatBudget) }
+                    if (newCatMathPreview != null) {
+                        Text(
+                            text = newCatMathPreview,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -494,7 +504,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = editBudget,
                         onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                            if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                 editBudget = input
                             }
                         },
@@ -504,6 +514,16 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    val editBudgetMathPreview = remember(editBudget) { MoneyUtils.formatEvaluatedPreview(editBudget) }
+                    if (editBudgetMathPreview != null) {
+                        Text(
+                            text = editBudgetMathPreview,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                        )
+                    }
                 }
             },
             confirmButton = {

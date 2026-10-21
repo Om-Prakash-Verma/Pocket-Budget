@@ -616,7 +616,7 @@ fun MainContent(
                             OutlinedTextField(
                                 value = budgetInput,
                                 onValueChange = { input ->
-                                    if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                                    if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                         budgetInput = input
                                     }
                                 },
@@ -628,6 +628,17 @@ fun MainContent(
                                     focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
                                     unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
                                 )
+                            )
+                        }
+
+                        val mathPreview = remember(budgetInput) { MoneyUtils.formatEvaluatedPreview(budgetInput) }
+                        if (mathPreview != null) {
+                            Text(
+                                text = mathPreview,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                             )
                         }
                     }

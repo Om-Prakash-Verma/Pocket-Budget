@@ -24,6 +24,7 @@ import com.ghostpocket.app.model.CategoryEntity
 import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
+import com.ghostpocket.app.ui.components.CalculatorOperatorRow
 import com.ghostpocket.app.ui.components.CategoryIcon
 import com.ghostpocket.app.ui.components.ClayButton
 import com.ghostpocket.app.ui.components.ClayCard
@@ -191,7 +192,7 @@ fun AddTransactionBottomSheet(
                     OutlinedTextField(
                         value = amountInput,
                         onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                            if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                 amountInput = input
                             }
                         },
@@ -205,6 +206,26 @@ fun AddTransactionBottomSheet(
                         )
                     )
                 }
+
+                // Live Calculator Result Preview (e.g. "= ₹160")
+                val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                if (mathPreview != null) {
+                    Text(
+                        text = mathPreview,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 28.dp, top = 2.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tactile Calculator Operator Row (+, −, ×, ÷, =, ⌫)
+                CalculatorOperatorRow(
+                    currentInput = amountInput,
+                    onInputChanged = { amountInput = it }
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))

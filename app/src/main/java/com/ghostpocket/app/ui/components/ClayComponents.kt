@@ -247,3 +247,122 @@ fun ClayIconButton(
         )
     }
 }
+
+/**
+ * Tactile Clay Calculator Operator Row
+ * Allows single-tap insertion of operators (+, −, ×, ÷), calculation (=), and backspace without switching keyboard mode.
+ */
+@Composable
+fun CalculatorOperatorRow(
+    currentInput: String,
+    onInputChanged: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val operators = listOf(
+            "+" to " + ",
+            "−" to " - ",
+            "×" to " * ",
+            "÷" to " / "
+        )
+
+        operators.forEach { (label, op) ->
+            ClayCalculatorPill(
+                label = label,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    val trimmed = currentInput.trimEnd()
+                    if (trimmed.isNotEmpty() && !trimmed.endsWith("+") && !trimmed.endsWith("-") && !trimmed.endsWith("*") && !trimmed.endsWith("/")) {
+                        onInputChanged("$trimmed$op")
+                    } else if (trimmed.isEmpty() && label == "−") {
+                        onInputChanged("-")
+                    }
+                }
+            )
+        }
+
+        // Evaluate '=' button
+        ClayCalculatorPill(
+            label = "=",
+            isAccent = true,
+            modifier = Modifier.weight(1f),
+            onClick = {
+                val evaluated = com.ghostpocket.app.model.MoneyUtils.evaluateToCleanString(currentInput)
+                if (evaluated != null) {
+                    onInputChanged(evaluated)
+                }
+            }
+        )
+
+        // Backspace '⌫' button
+        ClayCalculatorPill(
+            label = "⌫",
+            modifier = Modifier.weight(1f),
+            onClick = {
+                if (currentInput.isNotEmpty()) {
+                    onInputChanged(currentInput.dropLast(1).trimEnd())
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun ClayCalculatorPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isAccent: Boolean = false
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val shape = remember { RoundedCornerShape(12.dp) }
+    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
+
+    val bgBrush = remember(isDark, isAccent) {
+        if (isAccent) {
+            Brush.verticalGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)))
+        } else if (isDark) {
+            Brush.verticalGradient(listOf(Color(0xFF242430), Color(0xFF191922)))
+        } else {
+            Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE8E8F0)))
+        }
+    }
+
+    val textColor = when {
+        isAccent -> Color.White
+        isDark -> Color(0xFFEEEEF5)
+        else -> Color(0xFF1B1B20)
+    }
+
+    val elevation = if (isPressed) 1.dp else 3.dp
+
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .shadow(elevation, shape)
+            .clip(shape)
+            .background(bgBrush)
+            .border(
+                1.dp,
+                if (isAccent) Color(0xFFA78BFA) else if (isDark) Color(0xFF333344) else Color(0xFFD6D6E2),
+                shape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            color = textColor
+        )
+    }
+}

@@ -548,7 +548,7 @@ fun AddLedgerEntryDialog(
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                                if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                     amountInput = input
                                 }
                             },
@@ -560,6 +560,17 @@ fun AddLedgerEntryDialog(
                                 focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
                                 unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
                             )
+                        )
+                    }
+
+                    val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                    if (mathPreview != null) {
+                        Text(
+                            text = mathPreview,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                         )
                     }
                 }
@@ -676,7 +687,7 @@ fun RecordRepaymentDialog(
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                                if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                     amountInput = input
                                 }
                             },
@@ -687,6 +698,17 @@ fun RecordRepaymentDialog(
                                 focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
                                 unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
                             )
+                        )
+                    }
+
+                    val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                    if (mathPreview != null) {
+                        Text(
+                            text = mathPreview,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                         )
                     }
                 }
@@ -861,7 +883,7 @@ fun EditLedgerEntryDialog(
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
+                                if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
                                     amountInput = input
                                 }
                             },
@@ -873,6 +895,17 @@ fun EditLedgerEntryDialog(
                                 focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
                                 unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
                             )
+                        )
+                    }
+
+                    val mathPreview = remember(amountInput) { MoneyUtils.formatEvaluatedPreview(amountInput) }
+                    if (mathPreview != null) {
+                        Text(
+                            text = mathPreview,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 24.dp, top = 2.dp)
                         )
                     }
                 }
