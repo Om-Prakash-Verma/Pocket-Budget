@@ -68,7 +68,6 @@ fun DashboardScreen(
     onCurrentMonth: () -> Unit = {},
     onSelectMonth: (SelectedMonth) -> Unit = {},
     onAddClick: () -> Unit,
-    onSetBudgetClick: () -> Unit,
     onSetCategoryBudget: (category: String, budgetPaise: Long) -> Unit = { _, _ -> },
     onManageCategoriesClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -98,17 +97,17 @@ fun DashboardScreen(
         }
     }
 
-    // Daily safe allowance calculation
-    val dailySafePaise = remember(summary.remainingBudgetPaise, daysRemaining) {
-        if (summary.initialBudgetPaise > 0L) {
-            (summary.remainingBudgetPaise / daysRemaining).coerceAtLeast(0L)
+    // Daily safe allowance calculation based on live cash balance
+    val dailySafePaise = remember(summary.balancePaise, daysRemaining, selectedMonth) {
+        if (selectedMonth.isCurrentMonth && summary.balancePaise > 0L) {
+            (summary.balancePaise / daysRemaining).coerceAtLeast(0L)
         } else null
     }
 
     // Dynamic ghost mood based on financial status
     val ghostMood = remember(summary) {
         when {
-            summary.initialBudgetPaise > 0 && summary.remainingBudgetPaise < 0 -> GhostMood.SPOOKY_SPOOKED
+            summary.balancePaise < 0 -> GhostMood.SPOOKY_SPOOKED
             summary.balancePaise > 500000 -> GhostMood.RICH_GHOST
             summary.totalExpensePaise > summary.totalIncomePaise && summary.totalIncomePaise > 0 -> GhostMood.THINKING
             else -> GhostMood.HAPPY
@@ -118,9 +117,9 @@ fun DashboardScreen(
     // Witty/funny status gauge text
     val funnyStatus = remember(summary) {
         when {
-            summary.initialBudgetPaise == 0L -> "Set a budget before the ghosts eat it all! 👻"
-            summary.remainingBudgetPaise < 0 -> "You're haunting your bank account! 😱 Over budget!"
-            summary.remainingBudgetPaise < (summary.initialBudgetPaise * 0.2) -> "Danger zone! Your pocket is weeping 📉"
+            summary.totalIncomePaise == 0L && summary.totalExpensePaise == 0L -> "No spells cast yet this month! Feed your pocket 🪙"
+            summary.balancePaise < 0 -> "You're haunting your bank account! 😱 Deficit alert!"
+            summary.balancePaise == 0L -> "Clean balance! You're breaking even 🪙"
             else -> "Looking spooky rich! Keep it safe 🪙✨"
         }
     }
@@ -205,8 +204,7 @@ fun DashboardScreen(
                         ClayCard(
                             shapeRadius = 16.dp,
                             elevation = 4.dp,
-                            modifier = Modifier.size(46.dp),
-                            onClick = onSetBudgetClick
+                            modifier = Modifier.size(46.dp)
                         ) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 GhostMascot(size = 34.dp, mood = ghostMood)
@@ -235,8 +233,7 @@ fun DashboardScreen(
                     selectedMonth = selectedMonth,
                     funnyStatus = funnyStatus,
                     dailySafePaise = dailySafePaise,
-                    daysRemaining = daysRemaining,
-                    onSetBudgetClick = onSetBudgetClick
+                    daysRemaining = daysRemaining
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }

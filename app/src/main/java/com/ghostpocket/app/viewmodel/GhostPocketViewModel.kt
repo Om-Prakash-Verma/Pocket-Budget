@@ -105,7 +105,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.5.0", 13)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.6.0", 14)
     }
 
     fun selectPreviousMonth() {

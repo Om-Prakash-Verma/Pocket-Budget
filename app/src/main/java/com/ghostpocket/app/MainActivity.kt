@@ -138,7 +138,6 @@ fun MainContent(
     var showAddFriendDialog by remember { mutableStateOf(false) }
     var friendNameInput by rememberSaveable { mutableStateOf("") }
     var friendWhatsAppInput by rememberSaveable { mutableStateOf("") }
-    var showSetBudgetDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -205,7 +204,6 @@ fun MainContent(
             transactionToEdit != null -> transactionToEdit = null
             isAddTransactionOpen -> isAddTransactionOpen = false
             showAddCategoryDialog -> showAddCategoryDialog = false
-            showSetBudgetDialog -> showSetBudgetDialog = false
             showAddFriendDialog -> {
                 showAddFriendDialog = false
                 friendNameInput = ""
@@ -348,10 +346,10 @@ fun MainContent(
                     ActiveSubScreen.SPLIT_BILL -> {
                         SplitBillScreen(
                             friends = uiState.rawFriends,
+                            categories = uiState.categories,
                             onBack = { isSplitBillOpen = false },
-                            onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds, customShares ->
-                                val defaultCat = uiState.categories.firstOrNull()?.name ?: "Split"
-                                viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, defaultCat, customShares)
+                            onSplitConfirmed = { title, totalPaise, payerFriendId, participantFriendIds, category, customShares ->
+                                viewModel.splitBill(title, totalPaise, payerFriendId, participantFriendIds, category, customShares)
                                 isSplitBillOpen = false
                             }
                         )
@@ -360,7 +358,6 @@ fun MainContent(
                     ActiveSubScreen.SETTINGS -> {
                         SettingsScreen(
                             categories = uiState.categories,
-                            currentBudgetPaise = uiState.summary.initialBudgetPaise,
                             isSyncing = uiState.isSyncing,
                             currentThemeMode = currentThemeMode,
                             onThemeChange = onThemeChange,
@@ -374,7 +371,6 @@ fun MainContent(
                             },
                             onBack = { isSettingsOpen = false },
                             onManualSync = { viewModel.manualSync() },
-                            onSetBudget = { showSetBudgetDialog = true },
                             onAddCategory = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) },
                             onEditCategory = { oldName, newName, budgetPaise -> viewModel.editCategory(oldName, newName, budgetPaise, uiState.selectedMonth.monthKey) },
                             onDeleteCategory = { viewModel.deleteCategorySafe(it) },
@@ -421,7 +417,6 @@ fun MainContent(
                                         onCurrentMonth = { viewModel.selectCurrentMonth() },
                                         onSelectMonth = { viewModel.selectMonth(it) },
                                         onAddClick = { isAddTransactionOpen = true },
-                                        onSetBudgetClick = { showSetBudgetDialog = true },
                                         onSetCategoryBudget = { cat, budgetPaise ->
                                             viewModel.editCategory(cat, cat, budgetPaise, uiState.selectedMonth.monthKey)
                                         },
@@ -508,16 +503,6 @@ fun MainContent(
                 isAddTransactionOpen = false
                 transactionToEdit = null
             }
-        )
-    }
-
-    // Set Budget Dialog
-    if (showSetBudgetDialog) {
-        SetBudgetDialog(
-            selectedMonth = uiState.selectedMonth,
-            initialBudgetPaise = uiState.summary.initialBudgetPaise,
-            onDismiss = { showSetBudgetDialog = false },
-            onConfirm = { paise -> viewModel.setUserBudget(paise, uiState.selectedMonth.monthKey) }
         )
     }
 

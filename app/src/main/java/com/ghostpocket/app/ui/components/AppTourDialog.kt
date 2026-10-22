@@ -41,8 +41,8 @@ fun AppTourDialog(
                 subtitle = "Real Net Balance with Zero Ghost Money",
                 highlights = listOf(
                     "Net Balance strictly equals All Income − All Expenses.",
-                    "Monthly budgets represent spending targets, not imaginary cash in your bank.",
-                    "Switching months never alters your real liquid wallet balance."
+                    "No fake budgets: Add pocket money/allowance directly via '+ Income'.",
+                    "Daily Safe-to-Spend calculates automatically from your real cash in hand."
                 ),
                 badge = "CASHFLOW"
             ),

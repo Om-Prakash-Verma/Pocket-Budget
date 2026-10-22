@@ -1,6 +1,7 @@
 package com.ghostpocket.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.lazy.LazyRow
+import com.ghostpocket.app.model.CategoryEntity
 import com.ghostpocket.app.model.FriendEntity
 import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.ui.components.CalculatorOperatorRow
@@ -48,8 +51,9 @@ import com.ghostpocket.app.ui.components.ClayCard
 @Composable
 fun SplitBillScreen(
     friends: List<FriendEntity>,
+    categories: List<CategoryEntity> = emptyList(),
     onBack: () -> Unit,
-    onSplitConfirmed: (title: String, totalPaise: Long, payerFriendId: String?, participantFriendIds: List<String>, customShares: Map<String, Long>?) -> Unit,
+    onSplitConfirmed: (title: String, totalPaise: Long, payerFriendId: String?, participantFriendIds: List<String>, category: String, customShares: Map<String, Long>?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // ------------------------------------------------------------------------
@@ -57,6 +61,9 @@ fun SplitBillScreen(
     // ------------------------------------------------------------------------
     var titleInput by remember { mutableStateOf("") }
     var amountInput by remember { mutableStateOf(TextFieldValue("")) }
+    var selectedCategory by remember(categories) {
+        mutableStateOf(categories.firstOrNull()?.name ?: "Food")
+    }
     var payerFriendId by remember { mutableStateOf<String?>(null) } // null = You
     val selectedFriendIds = remember { mutableStateListOf<String>() }
 
@@ -202,6 +209,42 @@ fun SplitBillScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // Category Selector
+            if (categories.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Category 🏷️",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(categories) { cat ->
+                            val isSelected = cat.name == selectedCategory
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { selectedCategory = cat.name }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cat.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
             }
 
             // Who Paid Selector
@@ -412,6 +455,7 @@ fun SplitBillScreen(
                             parsedTotalPaise,
                             payerFriendId,
                             selectedFriendIds.toList(),
+                            selectedCategory,
                             customSharesMap
                         )
                     },

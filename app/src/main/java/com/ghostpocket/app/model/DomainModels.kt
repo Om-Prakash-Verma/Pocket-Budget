@@ -26,6 +26,13 @@ data class MonthlySummary(
     val balancePaise: Long
         get() = allTimeIncomePaise - allTimeExpensePaise
 
+    /**
+     * Month balance: Total Income of this month - Total Expense of this month.
+     * Represents net savings (+) or overspending (-) for this specific calendar month.
+     */
+    val monthBalancePaise: Long
+        get() = totalIncomePaise - totalExpensePaise
+
     val remainingBudgetPaise: Long
         get() = initialBudgetPaise - totalExpensePaise
 

@@ -54,14 +54,12 @@ import com.ghostpocket.app.util.AppThemeMode
 @Composable
 fun SettingsScreen(
     categories: List<CategoryEntity>,
-    currentBudgetPaise: Long,
     isSyncing: Boolean,
     currentThemeMode: AppThemeMode = AppThemeMode.DARK,
-    currentVersionName: String = "1.5.0",
-    currentVersionCode: Int = 13,
+    currentVersionName: String = "1.6.0",
+    currentVersionCode: Int = 14,
     isCheckingForUpdate: Boolean = false,
     onBack: () -> Unit,
-    onSetBudget: () -> Unit,
     onAddCategory: (String, Long) -> Unit,
     onEditCategory: (oldName: String, newName: String, budgetPaise: Long) -> Unit = { _, _, _ -> },
     onDeleteCategory: (CategoryEntity) -> Unit,
@@ -106,46 +104,6 @@ fun SettingsScreen(
                 .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp)
         ) {
-            // Overall Monthly Allowance / Budget Card
-            item {
-                ClayCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shapeRadius = 24.dp,
-                    elevation = 6.dp
-                ) {
-                    Text(
-                        text = "Monthly Allowance / Budget 💰",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Set how much money you have. The ghost will watch over your spending limits.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = MoneyUtils.formatPaiseToInr(currentBudgetPaise),
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        ClayButton(
-                            text = "Change ✏️",
-                            onClick = onSetBudget,
-                            isSecondary = true
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-
             // Custom Realm / Categories Management Card
             item {
                 CategorySettingsCard(

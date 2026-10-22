@@ -94,7 +94,7 @@ interface GhostPocketRepository {
 
     /**
      * Records a repayment between user and friend.
-     * Automatically adjusts the friend ledger and reconciles wallet cashflow (income/expense).
+     * Adjusts the squad credit ledger cleanly without distorting personal wallet income/expenses.
      */
     suspend fun recordRepayment(
         friendId: String,

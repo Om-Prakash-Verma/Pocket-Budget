@@ -404,15 +404,8 @@ class GhostPocketRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         friendLedgerDao.insertLedger(entry)
-
-        val tx = TransactionEntity(
-            amountPaise = repaymentAmountPaise,
-            type = if (isRepayingToUser) TransactionType.INCOME else TransactionType.EXPENSE,
-            category = "Debt Repayment",
-            note = note ?: if (isRepayingToUser) "Repaid by $friendName" else "Repaid to $friendName",
-            userId = currentUserIdProvider()
-        )
-        addTransaction(tx)
+        // Option A: Friend Squad Ledger is an isolated Udhaar book.
+        // Debt settlement does not artificially distort personal income or expense cashflow.
     }
 
     override suspend fun settleFriendLedger(friendId: String) {
