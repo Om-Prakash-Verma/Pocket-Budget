@@ -1,22 +1,14 @@
 package com.ghostpocket.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -27,10 +19,30 @@ import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.CalculatorOperatorRow
-import com.ghostpocket.app.ui.components.CategoryIcon
 import com.ghostpocket.app.ui.components.ClayButton
 import com.ghostpocket.app.ui.components.ClayCard
 
+/**
+ * ============================================================================
+ * AddTransactionBottomSheet
+ * ============================================================================
+ * Bottom sheet modal for casting a new transaction spell or editing an existing one.
+ *
+ * Core Components:
+ * - Mode switcher: [TransactionTypeSwitcher] (Expense 💸 vs Income 🪙).
+ * - Bento amount card with inline calculator row ([CalculatorOperatorRow]).
+ * - Quick amount preset chips: [QuickAmountChipsRow] (+₹10, +₹20, +₹50, +₹100, +₹500).
+ * - Realm assignment: [CategorySelectionRow] with "+ New" shortcut and "None" option.
+ * - Mandatory note validation when no category is selected.
+ * - Edit / delete options for existing transactions.
+ *
+ * @param categories Active categories list.
+ * @param onDismiss Dismiss callback.
+ * @param onSave Save callback with parsed amount, type, category, and note.
+ * @param onAddNewCategoryPrompt Callback opening new category creator.
+ * @param transactionToEdit Transaction being edited, or null if creating new.
+ * @param onDelete Optional delete callback for existing transaction.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionBottomSheet(
@@ -41,6 +53,9 @@ fun AddTransactionBottomSheet(
     transactionToEdit: TransactionEntity? = null,
     onDelete: ((String) -> Unit)? = null
 ) {
+    // ------------------------------------------------------------------------
+    // 1. Sheet State Initialization
+    // ------------------------------------------------------------------------
     var amountInput by remember {
         val initialText = if (transactionToEdit != null) {
             if (transactionToEdit.amountPaise % 100 == 0L) {
@@ -62,6 +77,9 @@ fun AddTransactionBottomSheet(
 
     val modalBottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // ------------------------------------------------------------------------
+    // 2. Bottom Sheet Layout
+    // ------------------------------------------------------------------------
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = modalBottomSheetState,
@@ -105,71 +123,15 @@ fun AddTransactionBottomSheet(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Bento Switcher: Expense / Income
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Expense Pill
-                val isExpense = selectedType == TransactionType.EXPENSE
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isExpense) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { selectedType = TransactionType.EXPENSE }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowUpward,
-                            contentDescription = null,
-                            tint = if (isExpense) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Expense 💸",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isExpense) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Income Pill
-                val isIncome = selectedType == TransactionType.INCOME
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { selectedType = TransactionType.INCOME }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowDownward,
-                            contentDescription = null,
-                            tint = if (isIncome) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Income 🪙",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isIncome) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            // Switcher: Expense / Income
+            TransactionTypeSwitcher(
+                selectedType = selectedType,
+                onSelectType = { selectedType = it }
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Bento Clay Card for Amount Input
+            // Amount Input Card with Calculator & Quick Chips
             ClayCard(
                 modifier = Modifier.fillMaxWidth(),
                 shapeRadius = 22.dp,
@@ -202,8 +164,8 @@ fun AddTransactionBottomSheet(
                         textStyle = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
                         )
                     )
                 }
@@ -231,146 +193,37 @@ fun AddTransactionBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Quick Amount Preset Chips (+₹10, +₹20, +₹50, +₹100, +₹500)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    listOf(10, 20, 50, 100, 500).forEach { preset ->
-                        val chipShape = RoundedCornerShape(10.dp)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(chipShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
-                                .clickable {
-                                    val currentVal = MoneyUtils.parseToPaise(amountInput.text) ?: 0L
-                                    val newVal = (currentVal / 100) + preset
-                                    val newStr = newVal.toString()
-                                    amountInput = TextFieldValue(newStr, selection = TextRange(newStr.length))
-                                }
-                                .padding(vertical = 7.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "+₹$preset",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                QuickAmountChipsRow(
+                    onPresetClick = { preset ->
+                        val currentVal = MoneyUtils.parseToPaise(amountInput.text) ?: 0L
+                        val newVal = (currentVal / 100) + preset
+                        val newStr = newVal.toString()
+                        amountInput = TextFieldValue(newStr, selection = TextRange(newStr.length))
                     }
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Category Selection Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Choose Realm (Optional)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (selectedCategory == null) "No realm selected • Note required below" else "Selected: ${selectedCategory}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (selectedCategory == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Quick Add Category Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { onAddNewCategoryPrompt() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ New", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // "None / Uncategorized" option
-                item {
-                    val isNoneSelected = selectedCategory == null
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isNoneSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { selectedCategory = null }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "✨ None",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isNoneSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                items(
-                    items = categories,
-                    key = { it.name },
-                    contentType = { "category_chip" }
-                ) { cat ->
-                    val isSelected = cat.name == selectedCategory
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable {
-                                selectedCategory = if (selectedCategory == cat.name) null else cat.name
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CategoryIcon(
-                            categoryName = cat.name,
-                            modifier = Modifier.size(16.dp),
-                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = cat.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
+            // Category Realm Selection Row
+            CategorySelectionRow(
+                categories = categories,
+                selectedCategory = selectedCategory,
+                onSelectCategory = { selectedCategory = it },
+                onAddNewCategoryPrompt = onAddNewCategoryPrompt
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            // Note Field with mandatory validation if no category is picked
             val isCategorySelected = !selectedCategory.isNullOrBlank()
             val isNoteRequired = !isCategorySelected
 
-            // Note Field with rounded container
             OutlinedTextField(
                 value = noteInput,
                 onValueChange = { noteInput = it },
                 label = {
-                    Text(
-                        if (isNoteRequired) "Spell Note (Required)*" else "Spell Note (Optional)"
-                    )
+                    Text(if (isNoteRequired) "Spell Note (Required)*" else "Spell Note (Optional)")
                 },
                 placeholder = {
                     Text(
@@ -390,24 +243,19 @@ fun AddTransactionBottomSheet(
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 textStyle = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Cast / Save Button
+            // Cast / Save Action Button
             val parsedPaise = MoneyUtils.parseToPaise(amountInput.text)
             val effectiveCat = selectedCategory?.trim()?.takeIf { it.isNotBlank() } ?: "Uncategorized"
             val isMetadataValid = if (isCategorySelected) true else noteInput.isNotBlank()
             val canSave = parsedPaise != null && parsedPaise > 0 && isMetadataValid
 
-            val saveButtonText = if (transactionToEdit != null) "Save Changes ✨" else "Cast to Ledger ✨"
             ClayButton(
-                text = saveButtonText,
+                text = if (transactionToEdit != null) "Save Changes ✨" else "Cast to Ledger ✨",
                 enabled = canSave,
                 onClick = {
                     if (parsedPaise != null && isMetadataValid) {
@@ -417,6 +265,7 @@ fun AddTransactionBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Banish (Delete) Option for Existing Transaction
             if (transactionToEdit != null && onDelete != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 ClayButton(
@@ -429,6 +278,7 @@ fun AddTransactionBottomSheet(
         }
     }
 
+    // Delete Confirmation Dialog
     if (showDeleteConfirmation && transactionToEdit != null && onDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },

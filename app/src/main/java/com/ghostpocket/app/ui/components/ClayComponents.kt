@@ -1,5 +1,7 @@
 package com.ghostpocket.app.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,159 +9,206 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Bento Clay Card: Pillowy, tactile 3D clay aesthetic with subtle dual-depth inner/outer highlights.
+ * ============================================================================
+ * ClayCard
+ * ============================================================================
+ * Claymorphic Bento card container with soft 3D shadows and inner lighting gradients.
+ *
+ * Visual Characteristics:
+ * - Rounded corners with customizable radius.
+ * - Layered shadows (deep ambient shadow + surface highlight border).
+ * - Interactive scale compression when clicked.
+ *
+ * @param modifier Composable modifier.
+ * @param shapeRadius Corner radius.
+ * @param elevation Depth elevation.
+ * @param onClick Optional click handler.
+ * @param content Composable slot content.
  */
 @Composable
 fun ClayCard(
     modifier: Modifier = Modifier,
-    shapeRadius: Dp = 22.dp,
+    shapeRadius: Dp = 24.dp,
     elevation: Dp = 6.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = remember(shapeRadius) { RoundedCornerShape(shapeRadius) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && onClick != null) 0.985f else 1f,
+        animationSpec = tween(durationMillis = 100),
+        label = "clay_card_scale"
+    )
+
+    val shape: Shape = RoundedCornerShape(shapeRadius)
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
-    // Soft clay gradient
-    val clayGradient = remember(isDark) {
+    val clayBgBrush = remember(isDark) {
         if (isDark) {
             Brush.verticalGradient(
                 listOf(
-                    Color(0xFF16161D),
-                    Color(0xFF101014)
+                    Color(0xFF20202A),
+                    Color(0xFF14141C)
                 )
             )
         } else {
             Brush.verticalGradient(
                 listOf(
                     Color(0xFFFFFFFF),
-                    Color(0xFFF1F1F6)
+                    Color(0xFFF3F3FA)
                 )
             )
         }
     }
 
-    val topBorderColor = remember(isDark) {
-        if (isDark) Color(0xFF2C2C38).copy(alpha = 0.35f) else Color(0xFFFFFFFF).copy(alpha = 0.8f)
+    val borderColor = remember(isDark) {
+        if (isDark) Color(0xFF2C2C3C) else Color(0xFFE2E2EE)
     }
-    val shadowColor = remember(isDark) {
-        if (isDark) Color(0x66000000) else Color(0x18000000)
-    }
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = interactionSource,
-            indication = null
-        ) { onClick() }
-    } else Modifier
-
-    val shadowModifier = if (elevation > 0.dp) {
-        Modifier.shadow(
-            elevation = elevation,
-            shape = shape,
-            ambientColor = shadowColor,
-            spotColor = shadowColor
-        )
-    } else Modifier
 
     Box(
         modifier = modifier
-            .then(shadowModifier)
+            .scale(scale)
+            .shadow(
+                elevation = if (isPressed && onClick != null) elevation / 2 else elevation,
+                shape = shape,
+                ambientColor = if (isDark) Color.Black.copy(alpha = 0.6f) else Color(0xFF9090AA).copy(alpha = 0.25f),
+                spotColor = if (isDark) Color.Black.copy(alpha = 0.9f) else Color(0xFF707090).copy(alpha = 0.35f)
+            )
             .clip(shape)
-            .background(clayGradient)
-            .border(1.5.dp, topBorderColor, shape)
-            .then(clickModifier)
-            .padding(18.dp)
+            .background(clayBgBrush)
+            .border(1.dp, borderColor, shape)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else Modifier
+            )
+            .padding(20.dp)
     ) {
-        Column(content = content)
+        Column {
+            content()
+        }
     }
 }
 
 /**
- * Tactile Clay Pill Button with 3D press feel
+ * ============================================================================
+ * ClayButton
+ * ============================================================================
+ * Tactile primary & secondary button styled with claymorphic tactile depth.
+ *
+ * @param text Button label.
+ * @param onClick Tap handler.
+ * @param modifier Composable modifier.
+ * @param icon Optional leading icon.
+ * @param enabled Whether button is active.
+ * @param isSecondary Styled as a muted secondary button.
+ * @param customColor Optional custom accent color override (e.g. green/red for gave/got).
  */
 @Composable
 fun ClayButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
     enabled: Boolean = true,
     isSecondary: Boolean = false,
-    icon: ImageVector? = null,
     customColor: Color? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val shape = remember { RoundedCornerShape(16.dp) }
 
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) 0.96f else 1f,
+        animationSpec = tween(durationMillis = 80),
+        label = "clay_btn_scale"
+    )
+
+    val shape = RoundedCornerShape(18.dp)
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
-    val bgBrush = remember(enabled, isSecondary, isDark, customColor) {
+    val bgBrush = remember(isSecondary, enabled, customColor, isDark) {
         when {
-            !enabled -> Brush.verticalGradient(listOf(Color(0xFF555562), Color(0xFF3F3F4A)))
-            customColor != null -> {
-                val darker = customColor.copy(
-                    red = (customColor.red * 0.82f).coerceIn(0f, 1f),
-                    green = (customColor.green * 0.82f).coerceIn(0f, 1f),
-                    blue = (customColor.blue * 0.82f).coerceIn(0f, 1f)
-                )
-                Brush.verticalGradient(listOf(customColor, darker))
-            }
+            !enabled -> Brush.verticalGradient(
+                listOf(Color(0xFF33333E), Color(0xFF262630))
+            )
+            customColor != null -> Brush.verticalGradient(
+                listOf(customColor.copy(alpha = 0.95f), customColor)
+            )
             isSecondary -> {
-                if (isDark) Brush.verticalGradient(listOf(Color(0xFF1D1D25), Color(0xFF131318)))
-                else Brush.verticalGradient(listOf(Color(0xFFF0F0F5), Color(0xFFE4E4EB)))
+                if (isDark) {
+                    Brush.verticalGradient(listOf(Color(0xFF282836), Color(0xFF1E1E28)))
+                } else {
+                    Brush.verticalGradient(listOf(Color(0xFFEBEBF5), Color(0xFFDEDEEA)))
+                }
             }
             else -> {
-                // Primary high-contrast clay button
-                if (isDark) Brush.verticalGradient(listOf(Color(0xFFF7F7FA), Color(0xFFDFDFE8)))
-                else Brush.verticalGradient(listOf(Color(0xFF1F1F24), Color(0xFF0F0F12)))
+                // Primary Electric Violet Gradient
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF8B5CF6),
+                        Color(0xFF6D28D9)
+                    )
+                )
             }
         }
     }
 
-    val textColor = when {
-        !enabled -> Color(0xFF888894)
+    val contentColor = when {
+        !enabled -> Color(0xFF6B6B7F)
         customColor != null -> Color.White
-        isSecondary -> if (isDark) Color(0xFFEDEDF2) else Color(0xFF1A1A1E)
-        else -> if (isDark) Color(0xFF0C0C0E) else Color(0xFFFFFFFF)
+        isSecondary -> MaterialTheme.colorScheme.onSurface
+        else -> Color.White
     }
 
-    val elevation = if (isPressed) 1.dp else 4.dp
-    val buttonBorder = remember(isDark, isSecondary) {
-        if (isDark && isSecondary) Color(0xFF2C2C38) else if (!isDark && isSecondary) Color(0xFFE0E0E6) else Color.Transparent
-    }
+    val elevation = if (isPressed || !enabled) 1.dp else 4.dp
 
     Box(
         modifier = modifier
-            .shadow(elevation, shape)
+            .scale(scale)
+            .shadow(
+                elevation = elevation,
+                shape = shape,
+                ambientColor = if (isSecondary) Color.Transparent else Color(0xFF7C3AED).copy(alpha = 0.35f),
+                spotColor = if (isSecondary) Color.Transparent else Color(0xFF7C3AED).copy(alpha = 0.5f)
+            )
             .clip(shape)
             .background(bgBrush)
-            .border(1.dp, buttonBorder, shape)
+            .border(
+                1.dp,
+                if (!enabled) Color.Transparent else if (isSecondary) Color(0xFF3B3B4E) else Color(0xFFA78BFA).copy(alpha = 0.6f),
+                shape
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                enabled = enabled
-            ) { onClick() }
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -167,10 +216,10 @@ fun ClayButton(
             horizontalArrangement = Arrangement.Center
         ) {
             if (icon != null) {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = textColor,
+                    tint = contentColor,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -178,262 +227,69 @@ fun ClayButton(
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelLarge,
-                color = textColor
+                fontWeight = FontWeight.Bold,
+                color = contentColor
             )
         }
     }
 }
 
 /**
- * Tactile Clay Icon Button for compact header and action controls
+ * ============================================================================
+ * ClayIconButton
+ * ============================================================================
+ * Tactile circular or squircle icon button.
  */
 @Composable
 fun ClayIconButton(
     icon: ImageVector,
     onClick: () -> Unit,
+    contentDescription: String?,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null,
-    size: Dp = 48.dp,
-    shapeRadius: Dp = 16.dp,
-    elevation: Dp = 4.dp
+    size: Dp = 44.dp,
+    shapeRadius: Dp = 14.dp,
+    tint: Color = MaterialTheme.colorScheme.onSurface
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val shape = remember(shapeRadius) { RoundedCornerShape(shapeRadius) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = tween(durationMillis = 80),
+        label = "clay_icon_btn_scale"
+    )
+
+    val shape = RoundedCornerShape(shapeRadius)
     val isDark = MaterialTheme.colorScheme.background.red < 0.5f
 
     val bgBrush = remember(isDark) {
         if (isDark) {
-            Brush.verticalGradient(
-                listOf(
-                    Color(0xFF181820),
-                    Color(0xFF111116)
-                )
-            )
+            Brush.verticalGradient(listOf(Color(0xFF262634), Color(0xFF1B1B24)))
         } else {
-            Brush.verticalGradient(
-                listOf(
-                    Color(0xFFFFFFFF),
-                    Color(0xFFF1F1F6)
-                )
-            )
+            Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFEDEDF6)))
         }
     }
-
-    val topBorderColor = remember(isDark) {
-        if (isDark) Color(0xFF2C2C38).copy(alpha = 0.35f) else Color(0xFFFFFFFF).copy(alpha = 0.8f)
-    }
-    val shadowColor = remember(isDark) {
-        if (isDark) Color(0x66000000) else Color(0x18000000)
-    }
-    val iconColor = if (isDark) Color(0xFFF5F5F8) else Color(0xFF1D1D22)
-    val currentElevation = if (isPressed) 1.dp else elevation
-
-    val shadowModifier = if (currentElevation > 0.dp) {
-        Modifier.shadow(
-            elevation = currentElevation,
-            shape = shape,
-            ambientColor = shadowColor,
-            spotColor = shadowColor
-        )
-    } else Modifier
 
     Box(
         modifier = modifier
             .size(size)
-            .then(shadowModifier)
+            .scale(scale)
+            .shadow(if (isPressed) 1.dp else 3.dp, shape)
             .clip(shape)
             .background(bgBrush)
-            .border(1.5.dp, topBorderColor, shape)
+            .border(1.dp, if (isDark) Color(0xFF333344) else Color(0xFFDCDCE8), shape)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null
-            ) { onClick() },
+                indication = null,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = iconColor,
-            modifier = Modifier.size(22.dp)
-        )
-    }
-}
-
-/**
- * Tactile Bento Clay Calculator Bar (+, −, ×, ÷, =, ⌫)
- * Supports TextFieldValue with explicit cursor placement directly following operators.
- */
-@Composable
-fun CalculatorOperatorRow(
-    textFieldValue: TextFieldValue,
-    onValueChange: (TextFieldValue) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val operators = listOf(
-            "+" to "+",
-            "−" to "-",
-            "×" to "*",
-            "÷" to "/"
-        )
-
-        operators.forEach { (label, op) ->
-            ClayCalculatorPill(
-                label = label,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    val text = textFieldValue.text
-                    val selStart = textFieldValue.selection.min.coerceIn(0, text.length)
-                    val selEnd = textFieldValue.selection.max.coerceIn(0, text.length)
-
-                    val before = text.substring(0, selStart)
-                    val after = text.substring(selEnd)
-
-                    // If user clicks an operator while immediately preceding char is another operator, replace it
-                    val trimmedBefore = before.trimEnd()
-                    val cleanBefore = if (trimmedBefore.isNotEmpty() &&
-                        (trimmedBefore.endsWith("+") || trimmedBefore.endsWith("-") ||
-                         trimmedBefore.endsWith("*") || trimmedBefore.endsWith("/") ||
-                         trimmedBefore.endsWith("×") || trimmedBefore.endsWith("÷"))
-                    ) {
-                        trimmedBefore.dropLast(1)
-                    } else {
-                        before
-                    }
-
-                    if (cleanBefore.isNotEmpty() || op == "-") {
-                        val newText = cleanBefore + op + after
-                        val newCursorPos = cleanBefore.length + op.length
-                        onValueChange(
-                            TextFieldValue(
-                                text = newText,
-                                selection = TextRange(newCursorPos)
-                            )
-                        )
-                    }
-                }
-            )
-        }
-
-        // Evaluate '=' button
-        ClayCalculatorPill(
-            label = "=",
-            isAccent = true,
-            modifier = Modifier.weight(1f),
-            onClick = {
-                val evaluated = com.ghostpocket.app.model.MoneyUtils.evaluateToCleanString(textFieldValue.text)
-                if (evaluated != null) {
-                    onValueChange(
-                        TextFieldValue(
-                            text = evaluated,
-                            selection = TextRange(evaluated.length)
-                        )
-                    )
-                }
-            }
-        )
-
-        // Backspace '⌫' button
-        ClayCalculatorPill(
-            label = "⌫",
-            modifier = Modifier.weight(1f),
-            onClick = {
-                val text = textFieldValue.text
-                val selStart = textFieldValue.selection.min.coerceIn(0, text.length)
-                val selEnd = textFieldValue.selection.max.coerceIn(0, text.length)
-
-                if (selStart != selEnd) {
-                    val newText = text.substring(0, selStart) + text.substring(selEnd)
-                    onValueChange(
-                        TextFieldValue(
-                            text = newText,
-                            selection = TextRange(selStart)
-                        )
-                    )
-                } else if (selStart > 0) {
-                    val newText = text.substring(0, selStart - 1) + text.substring(selStart)
-                    onValueChange(
-                        TextFieldValue(
-                            text = newText,
-                            selection = TextRange(selStart - 1)
-                        )
-                    )
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun CalculatorOperatorRow(
-    currentInput: String,
-    onInputChanged: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    CalculatorOperatorRow(
-        textFieldValue = TextFieldValue(currentInput, selection = TextRange(currentInput.length)),
-        onValueChange = { onInputChanged(it.text) },
-        modifier = modifier
-    )
-}
-
-@Composable
-fun ClayCalculatorPill(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isAccent: Boolean = false
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val shape = remember { RoundedCornerShape(12.dp) }
-    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
-
-    val bgBrush = remember(isDark, isAccent) {
-        if (isAccent) {
-            Brush.verticalGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)))
-        } else if (isDark) {
-            Brush.verticalGradient(listOf(Color(0xFF242430), Color(0xFF191922)))
-        } else {
-            Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE8E8F0)))
-        }
-    }
-
-    val textColor = when {
-        isAccent -> Color.White
-        isDark -> Color(0xFFEEEEF5)
-        else -> Color(0xFF1B1B20)
-    }
-
-    val elevation = if (isPressed) 1.dp else 3.dp
-
-    Box(
-        modifier = modifier
-            .height(38.dp)
-            .shadow(elevation, shape)
-            .clip(shape)
-            .background(bgBrush)
-            .border(
-                1.dp,
-                if (isAccent) Color(0xFFA78BFA) else if (isDark) Color(0xFF333344) else Color(0xFFD6D6E2),
-                shape
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null
-            ) { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            color = textColor
+            tint = tint,
+            modifier = Modifier.size(size * 0.45f)
         )
     }
 }

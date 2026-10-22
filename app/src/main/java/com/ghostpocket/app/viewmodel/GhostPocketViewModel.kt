@@ -1,58 +1,59 @@
 package com.ghostpocket.app.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.ghostpocket.app.data.remote.D1ApiClient
+import com.ghostpocket.app.data.remote.UnifiedSyncRequest
 import com.ghostpocket.app.data.repository.GhostPocketRepository
 import com.ghostpocket.app.model.*
+import com.ghostpocket.app.update.AppUpdateInfo
+import com.ghostpocket.app.update.DownloadState
+import com.ghostpocket.app.update.UpdateCheckResult
+import com.ghostpocket.app.update.UpdateManager
+import com.ghostpocket.app.util.AppPreferences
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.Calendar
 
-data class GhostPocketUiState(
-    val summary: MonthlySummary = MonthlySummary(),
-    val recentTransactions: List<TransactionEntity> = emptyList(),
-    val allTransactions: List<TransactionEntity> = emptyList(),
-    val friends: List<FriendBalance> = emptyList(),
-    val rawFriends: List<FriendEntity> = emptyList(),
-    val categories: List<CategoryEntity> = emptyList(),
-    val categorySpends: List<CategorySpend> = emptyList(),
-    val userBudget: UserBudgetEntity? = null,
-    val allBudgets: List<UserBudgetEntity> = emptyList(),
-    val selectedMonth: SelectedMonth = SelectedMonth.current(),
-    val creationMonth: SelectedMonth = SelectedMonth.current(),
-    val isSyncing: Boolean = false,
-    val isInitialDataFetching: Boolean = false,
-    val userMessage: String? = null,
-    val isAuthenticated: Boolean = false,
-    val authLoading: Boolean = false,
-    val authError: String? = null
-) {
-    val canSelectPreviousMonth: Boolean
-        get() = selectedMonth > creationMonth
-}
-
+/**
+ * GhostPocketViewModel coordinates UI interactions, state derivation,
+ * authentication, and background synchronization across the Ghost Pocket app.
+ */
 class GhostPocketViewModel(
     private val repository: GhostPocketRepository,
-    private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
-    private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
-    private val context: android.content.Context? = null,
+    private val d1ApiClient: D1ApiClient? = null,
+    private val updateManager: UpdateManager? = null,
+    private val context: Context? = null,
     private val triggerSync: () -> Unit
 ) : ViewModel() {
+
+    // ------------------------------------------------------------------------
+    // Month Selection & History Navigation
+    // ------------------------------------------------------------------------
 
     private val _selectedMonth = MutableStateFlow(SelectedMonth.current())
     val selectedMonth: StateFlow<SelectedMonth> = _selectedMonth.asStateFlow()
 
     private val _creationMonth = MutableStateFlow(
-        context?.let { com.ghostpocket.app.util.AppPreferences.getAccountCreationMonthKey(it) }?.let {
+        context?.let { AppPreferences.getAccountCreationMonthKey(it) }?.let {
             SelectedMonth.fromMonthKey(it)
         } ?: SelectedMonth.current()
     )
     val creationMonth: StateFlow<SelectedMonth> = _creationMonth.asStateFlow()
 
+    // ------------------------------------------------------------------------
     // In-App Update States
-    val availableUpdate = MutableStateFlow<com.ghostpocket.app.update.AppUpdateInfo?>(null)
+    // ------------------------------------------------------------------------
+
+    val availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
     val isCheckingForUpdate = MutableStateFlow(false)
-    val downloadState = updateManager?.downloadState ?: MutableStateFlow<com.ghostpocket.app.update.DownloadState>(com.ghostpocket.app.update.DownloadState.Idle)
+    val downloadState = updateManager?.downloadState ?: MutableStateFlow<DownloadState>(DownloadState.Idle)
 
     init {
         // Asynchronous throttled check for updates on app launch
@@ -64,16 +65,16 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             if (isManual) isCheckingForUpdate.value = true
             when (val res = updateManager.checkForUpdates(isManual)) {
-                is com.ghostpocket.app.update.UpdateCheckResult.UpdateAvailable -> {
+                is UpdateCheckResult.UpdateAvailable -> {
                     availableUpdate.value = res.info
                 }
-                is com.ghostpocket.app.update.UpdateCheckResult.UpToDate -> {
+                is UpdateCheckResult.UpToDate -> {
                     if (isManual) {
                         val (vName, _) = updateManager.getCurrentVersionInfo()
                         _userMessage.value = "GhostPocket is already up to date (v$vName)! 👻✨"
                     }
                 }
-                is com.ghostpocket.app.update.UpdateCheckResult.Error -> {
+                is UpdateCheckResult.Error -> {
                     if (isManual) {
                         _userMessage.value = res.message
                     }
@@ -83,7 +84,7 @@ class GhostPocketViewModel(
         }
     }
 
-    fun startUpdateDownload(info: com.ghostpocket.app.update.AppUpdateInfo) {
+    fun startUpdateDownload(info: AppUpdateInfo) {
         if (updateManager == null) return
         viewModelScope.launch {
             updateManager.downloadApk(info)
@@ -99,7 +100,7 @@ class GhostPocketViewModel(
         updateManager?.resetDownloadState()
     }
 
-    fun installApk(file: java.io.File): Boolean {
+    fun installApk(file: File): Boolean {
         return updateManager?.installApk(file) ?: false
     }
 
@@ -127,6 +128,10 @@ class GhostPocketViewModel(
         }
     }
 
+    // ------------------------------------------------------------------------
+    // UI Feedback & Auth State
+    // ------------------------------------------------------------------------
+
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _isSyncing = MutableStateFlow(false)
     private val _isInitialDataFetching = MutableStateFlow(false)
@@ -135,11 +140,15 @@ class GhostPocketViewModel(
     private val _isAuthenticated = MutableStateFlow(
         (d1ApiClient?.authToken != null && d1ApiClient.currentUserId != "guest_user") ||
         try {
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
+            FirebaseAuth.getInstance().currentUser != null
         } catch (e: Exception) {
             false
         }
     )
+
+    // ------------------------------------------------------------------------
+    // Reactive UI State Stream
+    // ------------------------------------------------------------------------
 
     val uiState: StateFlow<GhostPocketUiState> = combine(
         repository.allTransactions,
@@ -160,87 +169,30 @@ class GhostPocketViewModel(
         val categories = state.categories
         val allBudgets = state.allBudgets
 
-        if (context != null && com.ghostpocket.app.util.AppPreferences.getAccountCreationMonthKey(context) == null) {
+        if (context != null && AppPreferences.getAccountCreationMonthKey(context) == null) {
             val earliestTimestamp = allTxs.minOfOrNull { it.timestamp }
             val determinedCreationMonth = if (earliestTimestamp != null) {
-                val cal = java.util.Calendar.getInstance().apply { timeInMillis = earliestTimestamp }
-                SelectedMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
+                val cal = Calendar.getInstance().apply { timeInMillis = earliestTimestamp }
+                SelectedMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
             } else {
                 SelectedMonth.current()
             }
-            com.ghostpocket.app.util.AppPreferences.setAccountCreationMonthKey(context, determinedCreationMonth.monthKey)
+            AppPreferences.setAccountCreationMonthKey(context, determinedCreationMonth.monthKey)
             _creationMonth.value = determinedCreationMonth
         }
 
-        // Month-scoped budget resolution:
-        // 1. Exact match for current selected month (e.g. "2026-10")
-        // 2. Fallback to latest earlier configured month (e.g. "2026-09" if "2026-10" hasn't been set yet)
-        // 3. Fallback to legacy "current_budget"
-        // 4. Fallback to 0L
-        val monthBudgetEntity = allBudgets.find { it.id == month.monthKey }
-            ?: allBudgets
-                .filter { it.id.matches(Regex("\\d{4}-\\d{2}")) && it.id < month.monthKey }
-                .maxByOrNull { it.id }
-            ?: allBudgets.find { it.id == "current_budget" }
-
-        val monthBudgetPaise: Long = monthBudgetEntity?.budgetPaise ?: 0L
-
-        val (start, end) = month.timeRange()
-        val monthTxs = allTxs.filter { it.timestamp in start..end }
-        val income = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
-        val expense = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
-
-        // All-time income and expense for global net balance calculation (all remaining money)
-        val allTimeIncome = allTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amountPaise }
-        val allTimeExpense = allTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountPaise }
-
-        val summary = MonthlySummary(
-            totalIncomePaise = income,
-            totalExpensePaise = expense,
-            initialBudgetPaise = monthBudgetPaise,
-            allTimeIncomePaise = allTimeIncome,
-            allTimeExpensePaise = allTimeExpense
+        val breakdown = MonthlyFinancialCalculator.compute(
+            allTxs = allTxs,
+            categories = categories,
+            allBudgets = allBudgets,
+            month = month
         )
 
-        val monthExpenses = monthTxs.filter { it.type == TransactionType.EXPENSE }
-        val totalExpense = monthExpenses.sumOf { it.amountPaise }
-        val groupMap = monthExpenses.groupBy { it.category }
-        val allCatNames = (categories.map { it.name } + groupMap.keys).distinct()
-
-        // Month-scoped category budget resolution:
-        // 1. Exact match for current selected month: cat_Food_2026-10
-        // 2. Fallback to latest earlier configured month: cat_Food_2026-09
-        // 3. Fallback to category baseline: CategoryEntity.budgetPaise
-        val catBudgetMap = allCatNames.associateWith { catName ->
-            allBudgets.find { it.id == "cat_${catName}_${month.monthKey}" }?.budgetPaise
-                ?: allBudgets
-                    .filter { it.id.startsWith("cat_${catName}_") && it.id.removePrefix("cat_${catName}_") < month.monthKey }
-                    .maxByOrNull { it.id }
-                    ?.budgetPaise
-                ?: categories.find { it.name == catName }?.budgetPaise
-                ?: 0L
-        }
-        val categorySpends = if (categories.isEmpty() && totalExpense <= 0L) {
-            emptyList()
-        } else {
-            allCatNames.map { cat ->
-                val catTotal = groupMap[cat]?.sumOf { it.amountPaise } ?: 0L
-                val allocated = catBudgetMap[cat] ?: 0L
-                val pct = if (totalExpense > 0L) catTotal.toFloat() / totalExpense.toFloat() else 0f
-                CategorySpend(
-                    category = cat,
-                    totalPaise = catTotal,
-                    percentage = pct,
-                    allocatedBudgetPaise = allocated
-                )
-            }.sortedByDescending { it.totalPaise }
-        }
-
         state.copy(
-            summary = summary,
-            recentTransactions = monthTxs,
-            categorySpends = categorySpends,
-            userBudget = monthBudgetEntity,
+            summary = breakdown.summary,
+            recentTransactions = breakdown.monthTransactions,
+            categorySpends = breakdown.categorySpends,
+            userBudget = breakdown.monthBudgetEntity,
             selectedMonth = month
         )
     }.combine(_isSyncing) { state, syncing ->
@@ -263,6 +215,9 @@ class GhostPocketViewModel(
         initialValue = GhostPocketUiState()
     )
 
+    // ------------------------------------------------------------------------
+    // Authentication Operations
+    // ------------------------------------------------------------------------
 
     fun signIn(email: String, pass: String) {
         if (email.isBlank() || pass.isBlank()) {
@@ -273,7 +228,6 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                // 1. Try Cloudflare D1 Auth
                 var authSuccess = false
                 var failureReason: String? = null
 
@@ -286,11 +240,9 @@ class GhostPocketViewModel(
                     }
                 }
 
-                // 2. If D1 failed due to network, try Firebase as fallback
                 if (!authSuccess && failureReason?.contains("Invalid email or password", ignoreCase = true) != true) {
                     try {
-                        com.google.firebase.auth.FirebaseAuth.getInstance()
-                            .signInWithEmailAndPassword(email.trim(), pass)
+                        FirebaseAuth.getInstance().signInWithEmailAndPassword(email.trim(), pass)
                         authSuccess = true
                     } catch (e: Exception) {
                         if (failureReason == null) {
@@ -303,20 +255,16 @@ class GhostPocketViewModel(
                     _isAuthenticated.value = true
                     _isInitialDataFetching.value = true
                     _userMessage.value = "Welcome back! 👻"
-                    
-                    // Fetch cloud data immediately on login
+
                     viewModelScope.launch {
                         try {
                             if (d1ApiClient != null) {
-                                val pullRes = d1ApiClient.unifiedSync(
-                                    com.ghostpocket.app.data.remote.UnifiedSyncRequest(sinceTimestamp = 0L)
-                                )
+                                val pullRes = d1ApiClient.unifiedSync(UnifiedSyncRequest(sinceTimestamp = 0L))
                                 pullRes.remoteUpdates?.let { remote ->
                                     repository.applyD1PullResults(remote, d1ApiClient.currentUserId)
                                 }
                             }
                         } catch (e: Exception) {
-                            // If network failure, schedule background retry
                             triggerSync()
                         } finally {
                             _isInitialDataFetching.value = false
@@ -332,7 +280,6 @@ class GhostPocketViewModel(
             }
         }
     }
-
 
     fun signUp(email: String, pass: String) {
         if (email.isBlank() || pass.length < 6) {
@@ -357,8 +304,7 @@ class GhostPocketViewModel(
 
                 if (!authSuccess && failureReason?.contains("already exists", ignoreCase = true) != true) {
                     try {
-                        com.google.firebase.auth.FirebaseAuth.getInstance()
-                            .createUserWithEmailAndPassword(email.trim(), pass)
+                        FirebaseAuth.getInstance().createUserWithEmailAndPassword(email.trim(), pass)
                         authSuccess = true
                     } catch (e: Exception) {
                         if (failureReason == null) {
@@ -382,20 +328,18 @@ class GhostPocketViewModel(
         }
     }
 
-
     fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
             _authLoading.value = true
             _authError.value = null
             try {
-                // Cloudflare D1 Google OAuth Verification
                 if (d1ApiClient != null) {
                     d1ApiClient.googleSignIn(idToken)
                 }
 
                 try {
-                    val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-                    com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential)
+                    val credential = GoogleAuthProvider.getCredential(idToken, null)
+                    FirebaseAuth.getInstance().signInWithCredential(credential)
                 } catch (e: Exception) {
                     // Firebase offline / optional
                 }
@@ -403,13 +347,11 @@ class GhostPocketViewModel(
                 _isAuthenticated.value = true
                 _isInitialDataFetching.value = true
                 _userMessage.value = "Welcome, Google Traveler! 👻✨"
-                
+
                 viewModelScope.launch {
                     try {
                         if (d1ApiClient != null) {
-                            val pullRes = d1ApiClient.unifiedSync(
-                                com.ghostpocket.app.data.remote.UnifiedSyncRequest(sinceTimestamp = 0L)
-                            )
+                            val pullRes = d1ApiClient.unifiedSync(UnifiedSyncRequest(sinceTimestamp = 0L))
                             pullRes.remoteUpdates?.let { remote ->
                                 repository.applyD1PullResults(remote, d1ApiClient.currentUserId)
                             }
@@ -428,14 +370,13 @@ class GhostPocketViewModel(
         }
     }
 
-
     fun continueAsGuest() {
         viewModelScope.launch {
             _authLoading.value = true
             try {
                 d1ApiClient?.clearAuth()
                 try {
-                    com.google.firebase.auth.FirebaseAuth.getInstance().signInAnonymously()
+                    FirebaseAuth.getInstance().signInAnonymously()
                 } catch (e: Exception) {
                     // Offline fallback
                 }
@@ -451,11 +392,10 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             d1ApiClient?.clearAuth()
             try {
-                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                FirebaseAuth.getInstance().signOut()
             } catch (e: Exception) {
                 // Ignore
             }
-            // Clear local cache for account switching security & data isolation
             repository.clearLocalCache()
             _isAuthenticated.value = false
             _userMessage.value = "Vanished into thin air... 👻"
@@ -463,9 +403,12 @@ class GhostPocketViewModel(
     }
 
     fun clearMessage() {
-
         _userMessage.value = null
     }
+
+    // ------------------------------------------------------------------------
+    // Budget & Transaction CRUD
+    // ------------------------------------------------------------------------
 
     fun setUserBudget(budgetPaise: Long, monthKey: String = "") {
         val targetMonthKey = if (monthKey.isNotBlank()) monthKey else _selectedMonth.value.monthKey
@@ -501,6 +444,10 @@ class GhostPocketViewModel(
             _userMessage.value = "Banished into the void! 🪄"
         }
     }
+
+    // ------------------------------------------------------------------------
+    // Squad & Ledger Operations
+    // ------------------------------------------------------------------------
 
     fun addFriend(name: String, phone: String?) {
         viewModelScope.launch {
@@ -579,6 +526,10 @@ class GhostPocketViewModel(
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Category Management
+    // ------------------------------------------------------------------------
+
     fun addCategory(name: String, budgetPaise: Long = 0L) {
         viewModelScope.launch {
             repository.addCategory(name, budgetPaise)
@@ -628,18 +579,21 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             _isSyncing.value = true
             triggerSync()
-            kotlinx.coroutines.delay(1200)
+            delay(1200)
             _isSyncing.value = false
             _userMessage.value = "Cloud spirits synced! ☁️👻"
         }
     }
 }
 
+/**
+ * Factory for creating [GhostPocketViewModel] with constructor dependencies.
+ */
 class GhostPocketViewModelFactory(
     private val repository: GhostPocketRepository,
-    private val d1ApiClient: com.ghostpocket.app.data.remote.D1ApiClient? = null,
-    private val updateManager: com.ghostpocket.app.update.UpdateManager? = null,
-    private val context: android.content.Context? = null,
+    private val d1ApiClient: D1ApiClient? = null,
+    private val updateManager: UpdateManager? = null,
+    private val context: Context? = null,
     private val triggerSync: () -> Unit
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -650,4 +604,3 @@ class GhostPocketViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-

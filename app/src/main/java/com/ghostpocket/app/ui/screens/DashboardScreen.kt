@@ -1,33 +1,61 @@
 package com.ghostpocket.app.ui.screens
 
-import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.CategorySpend
 import com.ghostpocket.app.model.MonthlySummary
-import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.model.SelectedMonth
-import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.*
 
+/**
+ * ============================================================================
+ * DashboardScreen
+ * ============================================================================
+ * The primary home dashboard screen of GhostPocket.
+ *
+ * Screen Components:
+ * 1. Spooky Greeting header with dynamic ghost mascot mood & theme/settings quick toggles.
+ * 2. [MonthSelectorRow] with account-boundary aware back/forward navigation and quick picker.
+ * 3. [DashboardBalanceCard] displaying net balance, budget progress bar, daily "Safe to Spend"
+ *    allowance, and 1-tap summary sharing to WhatsApp/ShareSheet.
+ * 4. [DashboardInflowOutflowRow] displaying total income (Fed 🪙) and expenses (Vanished 💸).
+ * 5. Category Realms list ([BentoCategoryBudgetCard]) with 1-tap budget adjustment ([QuickCategoryBudgetDialog]).
+ * 6. Floating clay action button (+ Add) for logging new transactions.
+ *
+ * @param summary Aggregated financial totals for the selected month.
+ * @param categorySpends Breakdown of spending by realm/category.
+ * @param selectedMonth The active month being displayed.
+ * @param creationMonth The earliest month the user has account history for.
+ * @param canSelectPreviousMonth Flag indicating if earlier months exist.
+ * @param onPreviousMonth Steps to the previous calendar month.
+ * @param onNextMonth Steps to the next calendar month.
+ * @param onCurrentMonth Jumps to the current real-world month.
+ * @param onSelectMonth Jumps directly to a chosen month from the picker dialog.
+ * @param onAddClick Opens the Add Transaction bottom sheet.
+ * @param onSetBudgetClick Opens the main budget editor.
+ * @param onSetCategoryBudget Updates a specific realm's monthly budget.
+ * @param onManageCategoriesClick Navigates to the realm management screen.
+ * @param onSettingsClick Opens app settings.
+ * @param onToggleTheme Toggles dark/light theme mode.
+ * @param isDarkTheme True if dark theme is currently active.
+ * @param modifier Composable modifier.
+ */
 @Composable
 fun DashboardScreen(
     summary: MonthlySummary,
@@ -48,10 +76,13 @@ fun DashboardScreen(
     isDarkTheme: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
+    // ------------------------------------------------------------------------
+    // 1. Dialog & State Setup
+    // ------------------------------------------------------------------------
     var showMonthPicker by remember { mutableStateOf(false) }
     var categoryForBudgetEdit by remember { mutableStateOf<CategorySpend?>(null) }
 
+    // Calculate days remaining in the active month
     val daysRemaining = remember(selectedMonth) {
         val cal = java.util.Calendar.getInstance()
         if (selectedMonth.isCurrentMonth) {
@@ -67,12 +98,36 @@ fun DashboardScreen(
         }
     }
 
+    // Daily safe allowance calculation
     val dailySafePaise = remember(summary.remainingBudgetPaise, daysRemaining) {
         if (summary.initialBudgetPaise > 0L) {
             (summary.remainingBudgetPaise / daysRemaining).coerceAtLeast(0L)
         } else null
     }
 
+    // Dynamic ghost mood based on financial status
+    val ghostMood = remember(summary) {
+        when {
+            summary.initialBudgetPaise > 0 && summary.remainingBudgetPaise < 0 -> GhostMood.SPOOKY_SPOOKED
+            summary.balancePaise > 500000 -> GhostMood.RICH_GHOST
+            summary.totalExpensePaise > summary.totalIncomePaise && summary.totalIncomePaise > 0 -> GhostMood.THINKING
+            else -> GhostMood.HAPPY
+        }
+    }
+
+    // Witty/funny status gauge text
+    val funnyStatus = remember(summary) {
+        when {
+            summary.initialBudgetPaise == 0L -> "Set a budget before the ghosts eat it all! 👻"
+            summary.remainingBudgetPaise < 0 -> "You're haunting your bank account! 😱 Over budget!"
+            summary.remainingBudgetPaise < (summary.initialBudgetPaise * 0.2) -> "Danger zone! Your pocket is weeping 📉"
+            else -> "Looking spooky rich! Keep it safe 🪙✨"
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 2. Active Dialogs
+    // ------------------------------------------------------------------------
     if (showMonthPicker) {
         MonthPickerDialog(
             currentSelectedMonth = selectedMonth,
@@ -93,25 +148,9 @@ fun DashboardScreen(
         )
     }
 
-    // Dynamic mood based on budget health!
-    val ghostMood = remember(summary) {
-        when {
-            summary.initialBudgetPaise > 0 && summary.remainingBudgetPaise < 0 -> GhostMood.SPOOKY_SPOOKED
-            summary.balancePaise > 500000 -> GhostMood.RICH_GHOST
-            summary.totalExpensePaise > summary.totalIncomePaise && summary.totalIncomePaise > 0 -> GhostMood.THINKING
-            else -> GhostMood.HAPPY
-        }
-    }
-
-    val funnyStatus = remember(summary) {
-        when {
-            summary.initialBudgetPaise == 0L -> "Set a budget before the ghosts eat it all! 👻"
-            summary.remainingBudgetPaise < 0 -> "You're haunting your bank account! 😱 Over budget!"
-            summary.remainingBudgetPaise < (summary.initialBudgetPaise * 0.2) -> "Danger zone! Your pocket is weeping 📉"
-            else -> "Looking spooky rich! Keep it safe 🪙✨"
-        }
-    }
-
+    // ------------------------------------------------------------------------
+    // 3. Screen Layout
+    // ------------------------------------------------------------------------
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -119,7 +158,7 @@ fun DashboardScreen(
                 .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
         ) {
-            // Header: Spooky Greeting + Bento Actions (Settings & Mascot)
+            // Header: Spooky Greeting + Bento Actions (Settings, Theme, Mascot)
             item {
                 Row(
                     modifier = Modifier
@@ -128,9 +167,7 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Boo! 👋",
                             style = MaterialTheme.typography.labelLarge,
@@ -149,7 +186,6 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Quick Theme Toggle Button (☀️ / 🌙)
                         ClayIconButton(
                             icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                             onClick = onToggleTheme,
@@ -158,7 +194,6 @@ fun DashboardScreen(
                             shapeRadius = 15.dp
                         )
 
-                        // Tactile Clay Settings Button
                         ClayIconButton(
                             icon = Icons.Default.Settings,
                             onClick = onSettingsClick,
@@ -167,7 +202,6 @@ fun DashboardScreen(
                             shapeRadius = 15.dp
                         )
 
-                        // Bento Mascot Avatar Card
                         ClayCard(
                             shapeRadius = 16.dp,
                             elevation = 4.dp,
@@ -180,326 +214,43 @@ fun DashboardScreen(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Bento Month Selector Pill Bar
+            // Month Selector Pill Bar
             item {
-                ClayCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    shapeRadius = 18.dp,
-                    elevation = 2.dp
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onPreviousMonth,
-                            enabled = canSelectPreviousMonth,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Previous Month",
-                                tint = if (canSelectPreviousMonth) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-                            )
-                        }
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { showMonthPicker = true }
-                                .padding(horizontal = 12.dp, vertical = 2.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = selectedMonth.label,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "📅", fontSize = 14.sp)
-                            }
-                            if (selectedMonth.isCurrentMonth) {
-                                Text(
-                                    text = "Current Month • Tap to change",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                Text(
-                                    text = "Tap to pick month / jump",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = onNextMonth,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowForward,
-                                contentDescription = "Next Month",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
+                MonthSelectorRow(
+                    selectedMonth = selectedMonth,
+                    canSelectPreviousMonth = canSelectPreviousMonth,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onPickMonth = { showMonthPicker = true }
+                )
             }
 
-            // BENTO CELL 1: Main Balance & Funny Spooky Gauge
+            // Main Balance Card & Daily Safe-to-Spend Allowance
             item {
-                ClayCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shapeRadius = 26.dp,
-                    elevation = 8.dp,
-                    onClick = onSetBudgetClick
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column {
-                            Text(
-                                text = "NET BALANCE",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.2.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = MoneyUtils.formatPaiseToInr(summary.balancePaise),
-                                style = MaterialTheme.typography.displayLarge,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Share Month Summary Button
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable {
-                                        val shareText = "👻 *GhostPocket • ${selectedMonth.label} Summary*\n" +
-                                                "💰 *Net Balance:* ${MoneyUtils.formatPaiseToInr(summary.balancePaise)}\n" +
-                                                "📈 *Income:* ${MoneyUtils.formatPaiseToInr(summary.totalIncomePaise)}\n" +
-                                                "📉 *Spent:* ${MoneyUtils.formatPaiseToInr(summary.totalExpensePaise)}\n" +
-                                                (if (summary.initialBudgetPaise > 0L) "🎯 *Budget Left:* ${MoneyUtils.formatPaiseToInr(summary.remainingBudgetPaise)}\n" else "") +
-                                                (if (dailySafePaise != null && dailySafePaise > 0L) "⏱️ *Safe to spend:* ${MoneyUtils.formatPaiseToInr(dailySafePaise)}/day ($daysRemaining days left)\n" else "") +
-                                                "\n_Tracked with GhostPocket ✨_"
-                                        val sendIntent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                            type = "text/plain"
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, "Share ${selectedMonth.label} Summary"))
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = "Share 📤",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            // Budget quick pill
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { onSetBudgetClick() }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = if (summary.initialBudgetPaise > 0L) "Edit Budget ✏️" else "+ Set Budget",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Funny status banner
-                    Text(
-                        text = funnyStatus,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (summary.initialBudgetPaise > 0L) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Clay Progress Bar
-                        val fraction = (summary.totalExpensePaise.toFloat() / summary.initialBudgetPaise.toFloat()).coerceIn(0f, 1f)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(fraction)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Budget: ${MoneyUtils.formatPaiseToInr(summary.initialBudgetPaise)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "Left: ${MoneyUtils.formatPaiseToInr(summary.remainingBudgetPaise)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Daily Safe-to-Spend Pill
-                        Spacer(modifier = Modifier.height(10.dp))
-                        val isOverBudget = summary.remainingBudgetPaise < 0
-                        Surface(
-                            color = if (!isOverBudget) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = if (!isOverBudget) "🎯" else "⚠️", fontSize = 14.sp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (!isOverBudget) "Safe to spend ($daysRemaining days left)" else "Monthly allowance exceeded!",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (!isOverBudget) Color(0xFF10B981) else Color(0xFFEF4444)
-                                    )
-                                }
-                                Text(
-                                    text = if (!isOverBudget) "${MoneyUtils.formatPaiseToInr(dailySafePaise ?: 0L)} / day" else "₹0 / day",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (!isOverBudget) Color(0xFF10B981) else Color(0xFFEF4444)
-                                )
-                            }
-                        }
-                    }
-                }
-
+                DashboardBalanceCard(
+                    summary = summary,
+                    selectedMonth = selectedMonth,
+                    funnyStatus = funnyStatus,
+                    dailySafePaise = dailySafePaise,
+                    daysRemaining = daysRemaining,
+                    onSetBudgetClick = onSetBudgetClick
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // BENTO GRID ROW: Income & Spent Clay Cubes
+            // Income (Fed 🪙) & Expense (Vanished 💸) Bento Row
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Income Bento
-                    ClayCard(
-                        modifier = Modifier.weight(1f),
-                        shapeRadius = 22.dp,
-                        elevation = 6.dp
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Fed 🪙",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = MoneyUtils.formatPaiseToInr(summary.totalIncomePaise),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    // Spent Bento
-                    ClayCard(
-                        modifier = Modifier.weight(1f),
-                        shapeRadius = 22.dp,
-                        elevation = 6.dp
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Vanished 💸",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = MoneyUtils.formatPaiseToInr(summary.totalExpensePaise),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
+                DashboardInflowOutflowRow(
+                    totalIncomePaise = summary.totalIncomePaise,
+                    totalExpensePaise = summary.totalExpensePaise
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Category Budget Breakdown Header
+            // Category Realms Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -533,11 +284,10 @@ fun DashboardScreen(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(14.dp))
             }
 
-            // Category Budget Cards or empty state
+            // Category Realm Progress List
             if (categorySpends.isEmpty()) {
                 item {
                     ClayCard(
@@ -565,7 +315,7 @@ fun DashboardScreen(
             }
         }
 
-        // Tactile Clay Floating Action Button
+        // Tactile Clay Floating Action Button (+ Add)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -578,280 +328,4 @@ fun DashboardScreen(
             )
         }
     }
-}
-
-@Composable
-fun BentoCategoryBudgetCard(
-    spend: CategorySpend,
-    onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    val allocated = spend.allocatedBudgetPaise
-    val spent = spend.totalPaise
-    val remaining = allocated - spent
-    val hasBudget = allocated > 0L
-    val isOverBudget = hasBudget && remaining < 0L
-
-    val fraction = remember(hasBudget, spent, allocated, spend.percentage) {
-        if (hasBudget) {
-            (spent.toFloat() / allocated.toFloat()).coerceIn(0f, 1f)
-        } else {
-            spend.percentage.coerceIn(0f, 1f)
-        }
-    }
-
-    val progressShape = remember { RoundedCornerShape(4.dp) }
-    val formattedSpent = remember(spent) { MoneyUtils.formatPaiseToInr(spent) }
-    val formattedBudget = remember(allocated) { "Budget: ${MoneyUtils.formatPaiseToInr(allocated)}" }
-    val remainingText = remember(hasBudget, remaining, spend.percentage) {
-        if (hasBudget) {
-            if (remaining >= 0L) "Left: ${MoneyUtils.formatPaiseToInr(remaining)}" else "-${MoneyUtils.formatPaiseToInr(kotlin.math.abs(remaining))} ⚠️"
-        } else {
-            "${(spend.percentage * 100).toInt()}% of total expenses"
-        }
-    }
-
-    ClayCard(
-        modifier = modifier.fillMaxWidth(),
-        shapeRadius = 20.dp,
-        elevation = 3.dp,
-        onClick = onClick
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CategoryIcon(
-                            categoryName = spend.category,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = spend.category,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (hasBudget) {
-                                if (isOverBudget) "Over budget! 😱" else "On track 👍"
-                            } else {
-                                "No budget set"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Spent display
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = formattedSpent,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "Spent",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Progress bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(progressShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = fraction.coerceIn(0.02f, 1f))
-                        .fillMaxHeight()
-                        .clip(progressShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Budget and Left details
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (hasBudget) formattedBudget else "Uncapped",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text = remainingText,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun BentoTransactionItem(
-    transaction: com.ghostpocket.app.model.TransactionEntity,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isExpense = transaction.type == TransactionType.EXPENSE
-    val displayAmount = remember(transaction.amountPaise, isExpense) {
-        val formattedAmount = MoneyUtils.formatPaiseToInr(transaction.amountPaise)
-        if (isExpense) "-$formattedAmount" else "+$formattedAmount"
-    }
-
-    ClayCard(
-        modifier = modifier.fillMaxWidth(),
-        shapeRadius = 18.dp,
-        elevation = 3.dp,
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CategoryIcon(
-                        categoryName = transaction.category,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Text(
-                        text = transaction.category,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (!transaction.note.isNullOrBlank()) transaction.note else if (isExpense) "Vanished" else "Summoned",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = displayAmount,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                SyncStatusChip(status = transaction.syncStatus)
-            }
-        }
-    }
-}
-
-@Composable
-fun QuickCategoryBudgetDialog(
-    spend: CategorySpend,
-    monthLabel: String,
-    onDismiss: () -> Unit,
-    onSave: (budgetPaise: Long) -> Unit
-) {
-    var budgetInput by remember(spend) {
-        mutableStateOf(if (spend.allocatedBudgetPaise > 0L) (spend.allocatedBudgetPaise / 100).toString() else "")
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "${spend.category} Budget 🏷️",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = "Set monthly spending allowance for ${spend.category} in $monthLabel.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = budgetInput,
-                    onValueChange = { input ->
-                        if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
-                            budgetInput = input
-                        }
-                    },
-                    label = { Text("Allocated Budget ₹") },
-                    placeholder = { Text("e.g. 1500 (or 50*30)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                val mathPreview = remember(budgetInput) { MoneyUtils.formatEvaluatedPreview(budgetInput) }
-                if (mathPreview != null) {
-                    Text(
-                        text = mathPreview,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            ClayButton(
-                text = "Save Budget ✨",
-                onClick = {
-                    val budgetPaise = MoneyUtils.parseToPaise(budgetInput) ?: 0L
-                    onSave(budgetPaise)
-                    onDismiss()
-                }
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

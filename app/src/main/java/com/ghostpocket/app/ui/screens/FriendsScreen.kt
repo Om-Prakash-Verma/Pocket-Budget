@@ -1,12 +1,9 @@
 package com.ghostpocket.app.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -20,15 +17,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.FriendBalance
-import com.ghostpocket.app.model.MoneyUtils
 import com.ghostpocket.app.ui.components.*
 
+/**
+ * FriendsScreen provides the primary hub for managing shared debts and group finances:
+ * - Summary Bento card detailing net receivable vs payable balances
+ * - Real-time fuzzy search by friend's name or phone number
+ * - Filter pills for "All", "Owes You", "You Owe", and "Settled"
+ * - One-tap sorting by Highest Debt vs Alphabetical (A-Z)
+ * - Quick launch actions for Bill Splitting and Friend registration
+ *
+ * @param friends List of friends with calculated balances.
+ * @param onAddFriendClick Triggered to summon a new friend to the squad.
+ * @param onSplitBillClick Triggered to open the bill-splitting flow.
+ * @param onFriendClick Triggered when a friend card is tapped.
+ * @param onSettingsClick Triggered to open app settings.
+ * @param onToggleTheme Triggered to toggle between dark and light themes.
+ * @param isDarkTheme Whether dark theme is currently enabled.
+ * @param modifier Optional layout modifier.
+ */
 @Composable
 fun FriendsScreen(
     friends: List<FriendBalance>,
@@ -44,6 +54,7 @@ fun FriendsScreen(
     var selectedFilter by remember { mutableStateOf("ALL") } // "ALL", "OWES_YOU", "YOU_OWE", "SETTLED"
     var sortOption by remember { mutableStateOf("DEBT") } // "DEBT", "NAME"
 
+    // Net balance calculations across entire squad
     val totalOwedToUser = remember(friends) {
         friends.filter { it.netPaise > 0 }.sumOf { it.netPaise }
     }
@@ -51,6 +62,7 @@ fun FriendsScreen(
         friends.filter { it.netPaise < 0 }.sumOf { kotlin.math.abs(it.netPaise) }
     }
 
+    // Filter and sort squad members dynamically
     val filteredFriends = remember(friends, searchQuery, selectedFilter, sortOption) {
         friends.filter { item ->
             val matchesQuery = searchQuery.isBlank() ||
@@ -136,48 +148,12 @@ fun FriendsScreen(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // BENTO CELL: Shared Ledger Overview
+            // Shared Ledger Overview Card
             item {
-                ClayCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shapeRadius = 24.dp,
-                    elevation = 6.dp
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "THEY OWE YOU 📜",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.1.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = MoneyUtils.formatPaiseToInr(totalOwedToUser),
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "YOU OWE THEM 💸",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.1.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = MoneyUtils.formatPaiseToInr(totalUserOwes),
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+                FriendsOverviewCard(
+                    totalOwedToUser = totalOwedToUser,
+                    totalUserOwes = totalUserOwes
+                )
 
                 Spacer(modifier = Modifier.height(18.dp))
             }
@@ -296,7 +272,7 @@ fun FriendsScreen(
             }
         }
 
-        // Add Friend Floating Clay Button
+        // Add Friend Floating Action Button
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -308,95 +284,5 @@ fun FriendsScreen(
                 onClick = onAddFriendClick
             )
         }
-    }
-}
-
-@Composable
-fun BentoFriendRow(
-    balance: FriendBalance,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val net = balance.netPaise
-    val (label, labelColor) = remember(net) {
-        when {
-            net > 0 -> Pair("${MoneyUtils.formatPaiseToInr(net)} · You will get 🟢", Color(0xFF10B981))
-            net < 0 -> Pair("${MoneyUtils.formatPaiseToInr(kotlin.math.abs(net))} · You will give 🔴", Color(0xFFEF4444))
-            else -> Pair("Settled ✓ (₹0)", Color.Unspecified)
-        }
-    }
-
-    ClayCard(
-        modifier = modifier.fillMaxWidth(),
-        shapeRadius = 18.dp,
-        elevation = 3.dp,
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = balance.friend.name.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Text(
-                        text = balance.friend.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (net != 0L) FontWeight.Bold else FontWeight.Normal,
-                        color = if (labelColor != Color.Unspecified) labelColor else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Text(
-                text = "→",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun ClaySquadFilterPill(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }

@@ -245,50 +245,7 @@ fun MainContent(
 
     // Initial Data Fetching Screen (when logging in with existing ID)
     if (uiState.isInitialDataFetching) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                ClayCard(
-                    shapeRadius = 32.dp,
-                    elevation = 10.dp,
-                    modifier = Modifier.size(110.dp)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        GhostMascot(
-                            size = 80.dp,
-                            mood = GhostMood.THINKING
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.onBackground,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Conjuring your data from the crypt... 📜✨",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Restoring spells, gold ledger & categories",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        com.ghostpocket.app.ui.components.InitialDataFetchingScreen()
         return
     }
 
@@ -297,37 +254,10 @@ fun MainContent(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (selectedFriendBalance == null && !isSplitBillOpen && !isSettingsOpen) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp
-                ) {
-                    Screen.entries.forEach { screen ->
-                        val selected = currentScreen == screen
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { currentScreen = screen },
-                            icon = {
-                                Icon(
-                                    imageVector = screen.icon,
-                                    contentDescription = screen.title
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = screen.title,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onBackground,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedTextColor = MaterialTheme.colorScheme.onBackground,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        )
-                    }
-                }
+                MainBottomBar(
+                    currentScreen = currentScreen,
+                    onSelectScreen = { currentScreen = it }
+                )
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -583,287 +513,39 @@ fun MainContent(
 
     // Set Budget Dialog
     if (showSetBudgetDialog) {
-        val selectedMonth = uiState.selectedMonth
-        val currentMonthBudgetPaise = uiState.summary.initialBudgetPaise
-        var budgetInput by remember(selectedMonth, currentMonthBudgetPaise) {
-            mutableStateOf(
-                if (currentMonthBudgetPaise > 0L) (currentMonthBudgetPaise / 100).toString() else ""
-            )
-        }
-        AlertDialog(
-            onDismissRequest = { showSetBudgetDialog = false },
-            title = {
-                Text(
-                    text = "Budget for ${selectedMonth.label} 💰👻",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Set your gold allowance specifically for ${selectedMonth.label}. Other months will preserve their own budgets intact.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    ClayCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shapeRadius = 18.dp,
-                        elevation = 2.dp
-                    ) {
-                        Text(
-                            text = "MONTHLY ALLOWANCE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.1.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "₹",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            OutlinedTextField(
-                                value = budgetInput,
-                                onValueChange = { input ->
-                                    if (input.all { MoneyUtils.isValidAmountInputChar(it) }) {
-                                        budgetInput = input
-                                    }
-                                },
-                                placeholder = { Text("10000") },
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
-                                )
-                            )
-                        }
-
-                        val mathPreview = remember(budgetInput) { MoneyUtils.formatEvaluatedPreview(budgetInput) }
-                        if (mathPreview != null) {
-                            Text(
-                                text = mathPreview,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 24.dp, top = 2.dp)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                val paise = MoneyUtils.parseToPaise(budgetInput)
-                ClayButton(
-                    text = "Lock In 🔒",
-                    enabled = paise != null,
-                    onClick = {
-                        if (paise != null) {
-                            viewModel.setUserBudget(paise, selectedMonth.monthKey)
-                            showSetBudgetDialog = false
-                        }
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showSetBudgetDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+        SetBudgetDialog(
+            selectedMonth = uiState.selectedMonth,
+            initialBudgetPaise = uiState.summary.initialBudgetPaise,
+            onDismiss = { showSetBudgetDialog = false },
+            onConfirm = { paise -> viewModel.setUserBudget(paise, uiState.selectedMonth.monthKey) }
         )
     }
 
     // Add Category Dialog
     if (showAddCategoryDialog) {
-        var newCatName by remember { mutableStateOf("") }
-        var newCatBudget by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { showAddCategoryDialog = false },
-            title = {
-                Text(
-                    text = "Create New Category 🏷️",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Name your custom realm and assign a budget limit if desired.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = newCatName,
-                        onValueChange = { newCatName = it },
-                        label = { Text("Realm Name") },
-                        placeholder = { Text("e.g. Chai, Books, Gym, Anime") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = newCatBudget,
-                        onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' } && input.count { it == '.' } <= 1) {
-                                newCatBudget = input
-                            }
-                        },
-                        label = { Text("Allocated Budget ₹ (Optional)") },
-                        placeholder = { Text("e.g. 1500") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                ClayButton(
-                    text = "Create Realm ✨",
-                    enabled = newCatName.isNotBlank(),
-                    onClick = {
-                        if (newCatName.isNotBlank()) {
-                            val budgetPaise = MoneyUtils.parseToPaise(newCatBudget) ?: 0L
-                            viewModel.addCategory(newCatName.trim(), budgetPaise)
-                            showAddCategoryDialog = false
-                        }
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddCategoryDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+        AddCategoryDialog(
+            onDismiss = { showAddCategoryDialog = false },
+            onConfirm = { name, budgetPaise -> viewModel.addCategory(name, budgetPaise) }
         )
     }
 
     // Add Friend Dialog
     if (showAddFriendDialog) {
-        AlertDialog(
-            onDismissRequest = {
+        AddFriendDialog(
+            context = context,
+            contactPickerLauncher = contactPickerLauncher,
+            initialName = friendNameInput,
+            initialWhatsApp = friendWhatsAppInput,
+            onDismiss = {
                 showAddFriendDialog = false
                 friendNameInput = ""
                 friendWhatsAppInput = ""
             },
-            title = {
-                Text(
-                    text = "Summon a Friend 👥👻",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Add someone to your squad. Pick directly from your phone contacts or enter details manually!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Quick-Pick from Contacts Button
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                val intent = Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
-                                contactPickerLauncher.launch(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "No contacts app available on device", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Contacts",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Pick from Contacts 📱",
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HorizontalDivider(modifier = Modifier.weight(1f))
-                        Text(
-                            text = "  or enter manually  ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        HorizontalDivider(modifier = Modifier.weight(1f))
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = friendNameInput,
-                        onValueChange = { friendNameInput = it },
-                        label = { Text("Friend's Name") },
-                        placeholder = { Text("e.g. Aarav, Rohan, Priya") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = friendWhatsAppInput,
-                        onValueChange = { friendWhatsAppInput = it },
-                        label = { Text("WhatsApp Number 💬") },
-                        placeholder = { Text("+91 9876543210") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                ClayButton(
-                    text = "Summon 🪄",
-                    enabled = friendNameInput.isNotBlank(),
-                    onClick = {
-                        if (friendNameInput.isNotBlank()) {
-                            viewModel.addFriend(friendNameInput.trim(), friendWhatsAppInput.trim())
-                            showAddFriendDialog = false
-                            friendNameInput = ""
-                            friendWhatsAppInput = ""
-                        }
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showAddFriendDialog = false
-                    friendNameInput = ""
-                    friendWhatsAppInput = ""
-                }) {
-                    Text("Cancel")
-                }
+            onConfirm = { name, whatsApp ->
+                viewModel.addFriend(name, whatsApp)
+                showAddFriendDialog = false
+                friendNameInput = ""
+                friendWhatsAppInput = ""
             }
         )
     }

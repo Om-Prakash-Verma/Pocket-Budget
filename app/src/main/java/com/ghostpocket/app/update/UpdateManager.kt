@@ -123,12 +123,12 @@ class UpdateManager(private val context: Context) {
             val remoteVersionName = releaseTag.trim().removePrefix("v").removePrefix("V")
 
             // Parse remote versionCode from release notes if explicitly specified
-            val explicitRemoteVersionCode = extractVersionCode(releaseNotes)
+            val explicitRemoteVersionCode = UpdateUtils.extractVersionCode(releaseNotes)
 
             // Determine if update is available:
             // 1. If remoteVersionName is higher than current (e.g. 1.4.1 > 1.4.0), check versionCode
             // 2. If remoteVersionName is identical (1.4.0 == 1.4.0), the user already has this release, so do not prompt.
-            val isSemanticHigher = isSemanticVersionNewer(remoteVersionName, currentVersionName)
+            val isSemanticHigher = UpdateUtils.isSemanticVersionNewer(remoteVersionName, currentVersionName)
             val isNewer = if (isSemanticHigher) {
                 if (explicitRemoteVersionCode != null) {
                     explicitRemoteVersionCode > currentVersionCode
@@ -144,7 +144,7 @@ class UpdateManager(private val context: Context) {
             }
 
             // Extract SHA-256 if available
-            val expectedSha256 = extractSha256(releaseNotes, release.assets)
+            val expectedSha256 = UpdateUtils.extractSha256(releaseNotes, release.assets, httpClient)
 
             // Check if mandatory
             val isMandatory = releaseNotes.contains("[mandatory]", ignoreCase = true) ||
@@ -229,7 +229,7 @@ class UpdateManager(private val context: Context) {
             // 1. Verify Checksum if provided
             var checksumVerified = false
             if (!updateInfo.expectedSha256.isNullOrBlank()) {
-                val calculatedSha256 = calculateSha256(tempFile)
+                val calculatedSha256 = UpdateUtils.calculateSha256(tempFile)
                 if (!calculatedSha256.equals(updateInfo.expectedSha256, ignoreCase = true)) {
                     tempFile.delete()
                     _downloadState.value = DownloadState.Failed(
@@ -359,70 +359,5 @@ class UpdateManager(private val context: Context) {
         val dir = File(context.cacheDir, "updates")
         if (!dir.exists()) dir.mkdirs()
         return dir
-    }
-
-    private fun extractVersionCode(releaseNotes: String): Int? {
-        // Strip markdown asterisks, backticks, underscores so **versionCode**: 3 matches easily
-        val cleanNotes = releaseNotes.replace("*", "").replace("`", "")
-        val pattern = Pattern.compile("(?i)(?:version[_\\s-]?code|build[_\\s-]?number|vc)\\s*[:=]\\s*(\\d+)")
-        val matcher = pattern.matcher(cleanNotes)
-        if (matcher.find()) {
-            return matcher.group(1)?.toIntOrNull()
-        }
-        return null
-    }
-
-    private fun extractSha256(releaseNotes: String, assets: List<GitHubAssetDto>): String? {
-        // 1. Look in release notes for SHA256: <64 hex>
-        val pattern = Pattern.compile("(?i)(?:sha-?256|checksum)[:=\\s]+([a-fA-F0-9]{64})")
-        val matcher = pattern.matcher(releaseNotes)
-        if (matcher.find()) {
-            return matcher.group(1)?.lowercase()
-        }
-
-        // 2. Look for .sha256 asset
-        val shaAsset = assets.firstOrNull {
-            it.name.endsWith(".sha256", ignoreCase = true) ||
-            it.name.equals("checksums.txt", ignoreCase = true) ||
-            it.name.equals("sha256.txt", ignoreCase = true)
-        }
-        if (shaAsset != null) {
-            try {
-                val req = Request.Builder().url(shaAsset.downloadUrl).build()
-                val resp = httpClient.newCall(req).execute()
-                val content = resp.body?.string().orEmpty()
-                val assetMatcher = Pattern.compile("([a-fA-F0-9]{64})").matcher(content)
-                if (assetMatcher.find()) {
-                    return assetMatcher.group(1)?.lowercase()
-                }
-            } catch (ignored: Exception) {}
-        }
-
-        return null
-    }
-
-    private fun calculateSha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(8 * 1024)
-            var read: Int
-            while (input.read(buffer).also { read = it } != -1) {
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
-    private fun isSemanticVersionNewer(remote: String, current: String): Boolean {
-        val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val currentParts = current.split(".").mapNotNull { it.toIntOrNull() }
-        val maxLen = maxOf(remoteParts.size, currentParts.size)
-        for (i in 0 until maxLen) {
-            val r = remoteParts.getOrElse(i) { 0 }
-            val c = currentParts.getOrElse(i) { 0 }
-            if (r > c) return true
-            if (r < c) return false
-        }
-        return false
     }
 }
