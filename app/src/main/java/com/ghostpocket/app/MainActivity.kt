@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: GhostPocketViewModel by viewModels {
         val app = application as GhostPocketApp
         GhostPocketViewModelFactory(app.repository, app.d1ApiClient, app.updateManager, applicationContext) {
-            SyncWorker.scheduleSync(applicationContext)
+            SyncWorker.scheduleImmediateSync(applicationContext)
         }
     }
 
@@ -214,20 +214,6 @@ fun MainContent(
             isSettingsOpen -> isSettingsOpen = false
             currentScreen != Screen.HOME -> currentScreen = Screen.HOME
             else -> activity?.finish()
-        }
-    }
-
-    // App Background Sync Observer: Syncs pending changes cleanly when user leaves/minimizes app
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                SyncWorker.scheduleOnAppBackground(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

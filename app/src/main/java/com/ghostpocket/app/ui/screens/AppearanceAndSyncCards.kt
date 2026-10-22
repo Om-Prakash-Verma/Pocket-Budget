@@ -147,7 +147,7 @@ fun CloudSyncSettingsCard(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "WorkManager automatically syncs queued spells when internet returns. You can also force a sync now.",
+            text = "WhatsApp-Style Silent Backup: Runs automatically once every 24 hours to back up all changes in a single batch. You can also force a backup now.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -103,7 +103,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.7.0", 15)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.7.1", 16)
     }
 
     fun selectPreviousMonth() {
@@ -452,7 +452,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.updateCategoryBudget(name, budgetPaise)
             _userMessage.value = "$name budget updated to ₹${budgetPaise / 100}! 💰"
-            triggerSync()
         }
     }
 
@@ -461,7 +460,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.renameCategory(oldName, newName, newBudgetPaise, targetMonthKey)
             _userMessage.value = "Realm transformed to $newName! 🏷️✨"
-            triggerSync()
         }
     }
 
@@ -469,7 +467,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteCategory(category)
             _userMessage.value = "${category.name} disintegrated! 💨"
-            triggerSync()
         }
     }
 
@@ -477,7 +474,6 @@ class GhostPocketViewModel(
         viewModelScope.launch {
             repository.deleteCategorySafe(category, fallbackCategory)
             _userMessage.value = "${category.name} disintegrated! Records preserved in $fallbackCategory 💨"
-            triggerSync()
         }
     }
 

@@ -81,14 +81,14 @@ fun AppTourDialog(
             ),
             TourStep(
                 icon = "☁️",
-                title = "Private & Offline First",
-                subtitle = "Local SQLite with Encrypted Cloud Sync",
+                title = "WhatsApp-Style Backup",
+                subtitle = "100% Offline with Once-Daily Silent Sync",
                 highlights = listOf(
-                    "Works 100% offline at all times with instant local storage.",
-                    "Zero telemetry or creepy ad trackers.",
-                    "Silently syncs encrypted backups to Cloudflare D1 when online."
+                    "Operates 100% offline — opening, closing, or switching apps never makes background network calls.",
+                    "Daily Silent Sync: Automatically backs up all changes in one single atomic batch once every 24 hours.",
+                    "Manual 'Sync Now' in Settings lets you trigger an immediate backup anytime you wish."
                 ),
-                badge = "SECURITY"
+                badge = "BACKUP & PRIVACY"
             )
         )
     }

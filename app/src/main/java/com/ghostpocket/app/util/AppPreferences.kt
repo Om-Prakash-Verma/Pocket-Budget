@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 
 object AppPreferences {
     private const val PREFS_NAME = "ghostpocket_app_prefs"
-    private const val KEY_TOUR_COMPLETED = "has_completed_tour_v1"
+    private const val KEY_TOUR_COMPLETED = "has_completed_tour_v2"
     private const val KEY_ACCOUNT_CREATION_MONTH = "account_creation_month_key"
 
     private fun getPrefs(context: Context): SharedPreferences {
