@@ -14,8 +14,8 @@ android {
         applicationId = "com.ghostpocket.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.7.1"
+        versionCode = 2
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
