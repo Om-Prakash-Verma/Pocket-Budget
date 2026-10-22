@@ -475,13 +475,14 @@ fun MainContent(
     if (isAddTransactionOpen || transactionToEdit != null) {
         AddTransactionBottomSheet(
             categories = uiState.categories,
+            targetMonth = uiState.selectedMonth,
             transactionToEdit = transactionToEdit,
             onDismiss = {
                 isAddTransactionOpen = false
                 transactionToEdit = null
             },
             onAddNewCategoryPrompt = { showAddCategoryDialog = true },
-            onSave = { amountPaise, type, category, note ->
+            onSave = { amountPaise, type, category, note, timestamp ->
                 val currentEdit = transactionToEdit
                 if (currentEdit != null) {
                     viewModel.editTransaction(
@@ -493,7 +494,7 @@ fun MainContent(
                         )
                     )
                 } else {
-                    viewModel.addTransaction(amountPaise, type, category, note)
+                    viewModel.addTransaction(amountPaise, type, category, note, timestamp)
                 }
                 isAddTransactionOpen = false
                 transactionToEdit = null

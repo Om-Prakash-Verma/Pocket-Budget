@@ -95,8 +95,14 @@ interface FriendLedgerDao {
     @Query("UPDATE friend_ledgers SET syncStatus = 'PENDING_DELETE', updatedAt = :now WHERE id = :id")
     suspend fun markForDeletion(id: String, now: Long = System.currentTimeMillis())
 
+    @Query("UPDATE friend_ledgers SET syncStatus = 'PENDING_DELETE', updatedAt = :now WHERE friendId = :friendId")
+    suspend fun markAllForDeletionForFriend(friendId: String, now: Long = System.currentTimeMillis())
+
     @Query("DELETE FROM friend_ledgers WHERE id = :id")
     suspend fun hardDelete(id: String)
+
+    @Query("DELETE FROM friend_ledgers WHERE friendId = :friendId")
+    suspend fun hardDeleteAllForFriend(friendId: String)
 
     @Query("SELECT * FROM friend_ledgers WHERE syncStatus IN ('PENDING_UPLOAD', 'PENDING_DELETE')")
     suspend fun getPendingSyncLedgers(): List<FriendLedgerEntity>
@@ -160,6 +166,12 @@ interface BudgetDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setBudget(budget: UserBudgetEntity)
+
+    @Query("SELECT * FROM user_settings WHERE id LIKE 'cat_' || :oldCategory || '_%'")
+    suspend fun getCategoryBudgetsForCategory(oldCategory: String): List<UserBudgetEntity>
+
+    @Query("DELETE FROM user_settings WHERE id = :id")
+    suspend fun deleteBudgetById(id: String)
 
     @Query("SELECT * FROM user_settings WHERE syncStatus = 'PENDING_UPLOAD'")
     suspend fun getPendingSyncBudgets(): List<UserBudgetEntity>

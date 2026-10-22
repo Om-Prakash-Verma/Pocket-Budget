@@ -64,8 +64,8 @@ object MonthlyFinancialCalculator {
 
         val monthExpenses = monthTxs.filter { it.type == TransactionType.EXPENSE }
         val totalExpense = monthExpenses.sumOf { it.amountPaise }
-        val groupMap = monthExpenses.groupBy { it.category }
-        val allCatNames = (categories.map { it.name } + groupMap.keys).distinct()
+        val groupMap = monthExpenses.groupBy { it.category.trim().ifBlank { "Other" } }
+        val allCatNames = (categories.map { it.name.trim() } + groupMap.keys).distinct().filter { it.isNotBlank() }
 
         // Month-scoped category budget resolution:
         // 1. Exact match for current selected month: cat_Food_2026-10

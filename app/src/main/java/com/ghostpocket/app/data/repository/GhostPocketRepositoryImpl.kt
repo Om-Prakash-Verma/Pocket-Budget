@@ -249,6 +249,14 @@ class GhostPocketRepositoryImpl(
             )
         }
 
+        // Migrate all historical month-scoped category budgets from old name to new name
+        val historicalBudgets = budgetDao.getCategoryBudgetsForCategory(trimmedOld)
+        for (b in historicalBudgets) {
+            val newId = b.id.replace("cat_${trimmedOld}_", "cat_${trimmedNew}_")
+            budgetDao.setBudget(b.copy(id = newId, updatedAt = now, syncStatus = SyncStatus.PENDING_UPLOAD))
+            budgetDao.deleteBudgetById(b.id)
+        }
+
         if (oldCat != null) {
             deleteCategory(oldCat)
         }
@@ -324,8 +332,10 @@ class GhostPocketRepositoryImpl(
         val item = friendDao.getFriendById(id) ?: return
         if (item.syncStatus == SyncStatus.PENDING_UPLOAD) {
             friendDao.hardDelete(id)
+            friendLedgerDao.hardDeleteAllForFriend(id)
         } else {
             friendDao.markForDeletion(id)
+            friendLedgerDao.markAllForDeletionForFriend(id)
         }
     }
 

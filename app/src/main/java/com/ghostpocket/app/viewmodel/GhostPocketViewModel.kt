@@ -105,7 +105,7 @@ class GhostPocketViewModel(
     }
 
     fun getCurrentVersionInfo(): Pair<String, Int> {
-        return updateManager?.getCurrentVersionInfo() ?: Pair("1.6.0", 14)
+        return updateManager?.getCurrentVersionInfo() ?: Pair("1.7.0", 15)
     }
 
     fun selectPreviousMonth() {
@@ -169,16 +169,22 @@ class GhostPocketViewModel(
         val categories = state.categories
         val allBudgets = state.allBudgets
 
-        if (context != null && AppPreferences.getAccountCreationMonthKey(context) == null) {
+        if (context != null) {
             val earliestTimestamp = allTxs.minOfOrNull { it.timestamp }
-            val determinedCreationMonth = if (earliestTimestamp != null) {
+            if (earliestTimestamp != null) {
                 val cal = Calendar.getInstance().apply { timeInMillis = earliestTimestamp }
-                SelectedMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-            } else {
-                SelectedMonth.current()
+                val txCreationMonth = SelectedMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+                val currentSavedKey = AppPreferences.getAccountCreationMonthKey(context)
+                val currentCreation = currentSavedKey?.let { SelectedMonth.fromMonthKey(it) } ?: SelectedMonth.current()
+                if (txCreationMonth < currentCreation || currentSavedKey == null) {
+                    AppPreferences.setAccountCreationMonthKey(context, txCreationMonth.monthKey)
+                    _creationMonth.value = txCreationMonth
+                }
+            } else if (AppPreferences.getAccountCreationMonthKey(context) == null) {
+                val current = SelectedMonth.current()
+                AppPreferences.setAccountCreationMonthKey(context, current.monthKey)
+                _creationMonth.value = current
             }
-            AppPreferences.setAccountCreationMonthKey(context, determinedCreationMonth.monthKey)
-            _creationMonth.value = determinedCreationMonth
         }
 
         val breakdown = MonthlyFinancialCalculator.compute(
@@ -418,13 +424,20 @@ class GhostPocketViewModel(
         }
     }
 
-    fun addTransaction(amountPaise: Long, type: TransactionType, category: String, note: String?) {
+    fun addTransaction(
+        amountPaise: Long,
+        type: TransactionType,
+        category: String,
+        note: String?,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
         viewModelScope.launch {
             val tx = TransactionEntity(
                 amountPaise = amountPaise,
                 type = type,
                 category = category,
-                note = note
+                note = note,
+                timestamp = timestamp
             )
             repository.addTransaction(tx)
             _userMessage.value = if (type == TransactionType.EXPENSE) "Money vanished! 💸👻" else "Pocket fed! 🪙✨"

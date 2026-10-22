@@ -148,4 +148,43 @@ class FinancialCalculationsTest {
         // Final net wallet balance: 5,000 - 250 = ₹4,750
         assertEquals(475000L, finalBalance)
     }
+
+    @Test
+    fun testUncategorizedExpenseFallbackToOtherInMonthlyBreakdown() {
+        val selectedMonth = com.ghostpocket.app.model.SelectedMonth(2026, 10)
+        val (start, end) = selectedMonth.timeRange()
+        val midMonth = start + 5000L
+
+        val tx1 = com.ghostpocket.app.model.TransactionEntity(
+            amountPaise = 50000L,
+            type = com.ghostpocket.app.model.TransactionType.EXPENSE,
+            category = "",
+            timestamp = midMonth
+        )
+        val tx2 = com.ghostpocket.app.model.TransactionEntity(
+            amountPaise = 30000L,
+            type = com.ghostpocket.app.model.TransactionType.EXPENSE,
+            category = "   ",
+            timestamp = midMonth
+        )
+        val tx3 = com.ghostpocket.app.model.TransactionEntity(
+            amountPaise = 20000L,
+            type = com.ghostpocket.app.model.TransactionType.EXPENSE,
+            category = "Food",
+            timestamp = midMonth
+        )
+
+        val breakdown = com.ghostpocket.app.viewmodel.MonthlyFinancialCalculator.compute(
+            allTxs = listOf(tx1, tx2, tx3),
+            categories = listOf(com.ghostpocket.app.model.CategoryEntity(name = "Food", budgetPaise = 100000L)),
+            allBudgets = emptyList(),
+            month = selectedMonth
+        )
+
+        assertEquals(100000L, breakdown.summary.totalExpensePaise)
+        val otherCategory = breakdown.categorySpends.find { it.category == "Other" }
+        org.junit.Assert.assertNotNull(otherCategory)
+        assertEquals(80000L, otherCategory?.totalPaise)
+        assertEquals(100000L, breakdown.categorySpends.sumOf { it.totalPaise })
+    }
 }

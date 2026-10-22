@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpocket.app.model.CategoryEntity
 import com.ghostpocket.app.model.MoneyUtils
+import com.ghostpocket.app.model.SelectedMonth
 import com.ghostpocket.app.model.TransactionEntity
 import com.ghostpocket.app.model.TransactionType
 import com.ghostpocket.app.ui.components.CalculatorOperatorRow
@@ -37,8 +38,9 @@ import com.ghostpocket.app.ui.components.ClayCard
  * - Edit / delete options for existing transactions.
  *
  * @param categories Active categories list.
+ * @param targetMonth Selected month context from the dashboard.
  * @param onDismiss Dismiss callback.
- * @param onSave Save callback with parsed amount, type, category, and note.
+ * @param onSave Save callback with parsed amount, type, category, note, and timestamp.
  * @param onAddNewCategoryPrompt Callback opening new category creator.
  * @param transactionToEdit Transaction being edited, or null if creating new.
  * @param onDelete Optional delete callback for existing transaction.
@@ -47,8 +49,9 @@ import com.ghostpocket.app.ui.components.ClayCard
 @Composable
 fun AddTransactionBottomSheet(
     categories: List<CategoryEntity>,
+    targetMonth: SelectedMonth = SelectedMonth.current(),
     onDismiss: () -> Unit,
-    onSave: (amountPaise: Long, type: TransactionType, category: String, note: String?) -> Unit,
+    onSave: (amountPaise: Long, type: TransactionType, category: String, note: String?, timestamp: Long) -> Unit,
     onAddNewCategoryPrompt: () -> Unit,
     transactionToEdit: TransactionEntity? = null,
     onDelete: ((String) -> Unit)? = null
@@ -69,7 +72,7 @@ fun AddTransactionBottomSheet(
     var selectedType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.EXPENSE) }
     var selectedCategory by remember {
         mutableStateOf<String?>(
-            transactionToEdit?.category?.takeIf { it.isNotBlank() && it != "Uncategorized" }
+            transactionToEdit?.category?.takeIf { it.isNotBlank() && it != "Uncategorized" && it != "Other" }
         )
     }
     var noteInput by remember { mutableStateOf(transactionToEdit?.note ?: "") }
@@ -119,6 +122,22 @@ fun AddTransactionBottomSheet(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            if (!targetMonth.isCurrentMonth && transactionToEdit == null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "🗓️ Logging for ${targetMonth.label}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -250,7 +269,7 @@ fun AddTransactionBottomSheet(
 
             // Cast / Save Action Button
             val parsedPaise = MoneyUtils.parseToPaise(amountInput.text)
-            val effectiveCat = selectedCategory?.trim()?.takeIf { it.isNotBlank() } ?: "Uncategorized"
+            val effectiveCat = selectedCategory?.trim()?.takeIf { it.isNotBlank() } ?: "Other"
             val isMetadataValid = if (isCategorySelected) true else noteInput.isNotBlank()
             val canSave = parsedPaise != null && parsedPaise > 0 && isMetadataValid
 
@@ -259,7 +278,12 @@ fun AddTransactionBottomSheet(
                 enabled = canSave,
                 onClick = {
                     if (parsedPaise != null && isMetadataValid) {
-                        onSave(parsedPaise, selectedType, effectiveCat, noteInput.trim().takeIf { it.isNotBlank() })
+                        val finalTimestamp = transactionToEdit?.timestamp ?: if (!targetMonth.isCurrentMonth) {
+                            targetMonth.timeRange().first + (12 * 3600 * 1000L)
+                        } else {
+                            System.currentTimeMillis()
+                        }
+                        onSave(parsedPaise, selectedType, effectiveCat, noteInput.trim().takeIf { it.isNotBlank() }, finalTimestamp)
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
