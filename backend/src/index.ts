@@ -23,7 +23,7 @@ function extractUserId(c: any): string {
 }
 
 // -------------------------------------------------------------
-// Auth Endpoints: Register, Login & Google Verification
+// Auth Endpoints: Register & Login
 // -------------------------------------------------------------
 app.post('/api/auth/register', async (c) => {
   const { email, password } = await c.req.json<{ email: string; password: string }>();
@@ -66,37 +66,6 @@ app.post('/api/auth/login', async (c) => {
     }
 
     return c.json({ token: user.id, userId: user.id, email: user.email });
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
-  }
-});
-
-app.post('/api/auth/google', async (c) => {
-  const { idToken } = await c.req.json<{ idToken: string }>();
-  if (!idToken) {
-    return c.json({ error: 'Missing idToken' }, 400);
-  }
-
-  try {
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    if (!res.ok) {
-      return c.json({ error: 'Invalid Google Token' }, 401);
-    }
-
-    const payload = await res.json<any>();
-    const googleSub = payload.sub;
-    const email = payload.email;
-    const name = payload.name;
-    const userId = `g_${googleSub}`;
-    const now = Date.now();
-
-    await c.env.DB.prepare(
-      `INSERT INTO users (id, email, display_name, created_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name`
-    ).bind(userId, email, name, now).run();
-
-    return c.json({ token: userId, userId, email, name });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

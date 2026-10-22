@@ -13,8 +13,6 @@ import com.ghostpocket.app.update.DownloadState
 import com.ghostpocket.app.update.UpdateCheckResult
 import com.ghostpocket.app.update.UpdateManager
 import com.ghostpocket.app.util.AppPreferences
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -138,12 +136,7 @@ class GhostPocketViewModel(
     private val _authLoading = MutableStateFlow(false)
     private val _authError = MutableStateFlow<String?>(null)
     private val _isAuthenticated = MutableStateFlow(
-        (d1ApiClient?.authToken != null && d1ApiClient.currentUserId != "guest_user") ||
-        try {
-            FirebaseAuth.getInstance().currentUser != null
-        } catch (e: Exception) {
-            false
-        }
+        d1ApiClient?.authToken != null && d1ApiClient.currentUserId != "guest_user"
     )
 
     // ------------------------------------------------------------------------
@@ -234,30 +227,8 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                var authSuccess = false
-                var failureReason: String? = null
-
-                if (d1ApiClient != null) {
-                    val res = d1ApiClient.login(email.trim(), pass)
-                    if (res.userId != null) {
-                        authSuccess = true
-                    } else if (res.error != null) {
-                        failureReason = res.error
-                    }
-                }
-
-                if (!authSuccess && failureReason?.contains("Invalid email or password", ignoreCase = true) != true) {
-                    try {
-                        FirebaseAuth.getInstance().signInWithEmailAndPassword(email.trim(), pass)
-                        authSuccess = true
-                    } catch (e: Exception) {
-                        if (failureReason == null) {
-                            failureReason = e.localizedMessage
-                        }
-                    }
-                }
-
-                if (authSuccess) {
+                val res = d1ApiClient?.login(email.trim(), pass)
+                if (res?.userId != null) {
                     _isAuthenticated.value = true
                     _isInitialDataFetching.value = true
                     _userMessage.value = "Welcome back! 👻"
@@ -277,7 +248,7 @@ class GhostPocketViewModel(
                         }
                     }
                 } else {
-                    _authError.value = failureReason ?: "Crypt doors sealed! Invalid email or password."
+                    _authError.value = res?.error ?: "Crypt doors sealed! Invalid email or password."
                 }
             } catch (e: Exception) {
                 _authError.value = e.localizedMessage ?: "Crypt doors sealed! Check credentials."
@@ -296,80 +267,16 @@ class GhostPocketViewModel(
             _authLoading.value = true
             _authError.value = null
             try {
-                var authSuccess = false
-                var failureReason: String? = null
-
-                if (d1ApiClient != null) {
-                    val res = d1ApiClient.register(email.trim(), pass)
-                    if (res.userId != null) {
-                        authSuccess = true
-                    } else if (res.error != null) {
-                        failureReason = res.error
-                    }
-                }
-
-                if (!authSuccess && failureReason?.contains("already exists", ignoreCase = true) != true) {
-                    try {
-                        FirebaseAuth.getInstance().createUserWithEmailAndPassword(email.trim(), pass)
-                        authSuccess = true
-                    } catch (e: Exception) {
-                        if (failureReason == null) {
-                            failureReason = e.localizedMessage
-                        }
-                    }
-                }
-
-                if (authSuccess) {
+                val res = d1ApiClient?.register(email.trim(), pass)
+                if (res?.userId != null) {
                     _isAuthenticated.value = true
                     _userMessage.value = "Account conjured! 🪄"
                     triggerSync()
                 } else {
-                    _authError.value = failureReason ?: "Spell failed! Could not create account."
+                    _authError.value = res?.error ?: "Spell failed! Could not create account."
                 }
             } catch (e: Exception) {
                 _authError.value = e.localizedMessage ?: "Spell failed! Could not create account."
-            } finally {
-                _authLoading.value = false
-            }
-        }
-    }
-
-    fun signInWithGoogle(idToken: String) {
-        viewModelScope.launch {
-            _authLoading.value = true
-            _authError.value = null
-            try {
-                if (d1ApiClient != null) {
-                    d1ApiClient.googleSignIn(idToken)
-                }
-
-                try {
-                    val credential = GoogleAuthProvider.getCredential(idToken, null)
-                    FirebaseAuth.getInstance().signInWithCredential(credential)
-                } catch (e: Exception) {
-                    // Firebase offline / optional
-                }
-
-                _isAuthenticated.value = true
-                _isInitialDataFetching.value = true
-                _userMessage.value = "Welcome, Google Traveler! 👻✨"
-
-                viewModelScope.launch {
-                    try {
-                        if (d1ApiClient != null) {
-                            val pullRes = d1ApiClient.unifiedSync(UnifiedSyncRequest(sinceTimestamp = 0L))
-                            pullRes.remoteUpdates?.let { remote ->
-                                repository.applyD1PullResults(remote, d1ApiClient.currentUserId)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        triggerSync()
-                    } finally {
-                        _isInitialDataFetching.value = false
-                    }
-                }
-            } catch (e: Exception) {
-                _authError.value = e.localizedMessage ?: "Google sign-in spell failed."
             } finally {
                 _authLoading.value = false
             }
@@ -381,11 +288,6 @@ class GhostPocketViewModel(
             _authLoading.value = true
             try {
                 d1ApiClient?.clearAuth()
-                try {
-                    FirebaseAuth.getInstance().signInAnonymously()
-                } catch (e: Exception) {
-                    // Offline fallback
-                }
                 _isAuthenticated.value = true
                 _userMessage.value = "Ghost Walk mode active! 👻"
             } finally {
@@ -397,11 +299,6 @@ class GhostPocketViewModel(
     fun signOut() {
         viewModelScope.launch {
             d1ApiClient?.clearAuth()
-            try {
-                FirebaseAuth.getInstance().signOut()
-            } catch (e: Exception) {
-                // Ignore
-            }
             repository.clearLocalCache()
             _isAuthenticated.value = false
             _userMessage.value = "Vanished into thin air... 👻"

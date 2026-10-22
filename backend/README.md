@@ -32,8 +32,6 @@ A high-performance, edge-first REST API built with [Cloudflare Workers](https://
   - Body: `{ "email": "...", "password": "...", "displayName": "..." }`
 - `POST /api/auth/login`
   - Body: `{ "email": "...", "password": "..." }`
-- `POST /api/auth/google`
-  - Body: `{ "idToken": "..." }`
 
 ### Data Synchronization
 - `POST /api/sync`

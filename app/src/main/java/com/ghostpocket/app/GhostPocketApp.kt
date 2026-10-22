@@ -5,8 +5,6 @@ import com.ghostpocket.app.data.local.GhostPocketDatabase
 import com.ghostpocket.app.data.remote.D1ApiClient
 import com.ghostpocket.app.data.repository.GhostPocketRepository
 import com.ghostpocket.app.data.repository.GhostPocketRepositoryImpl
-import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
@@ -37,23 +35,13 @@ class GhostPocketApp : Application() {
                 if (d1User.isNotBlank() && d1User != "guest_user") {
                     d1User
                 } else {
-                    try {
-                        FirebaseAuth.getInstance().currentUser?.uid ?: "local_user"
-                    } catch (e: Exception) {
-                        "local_user"
-                    }
+                    "local_user"
                 }
             }
         )
     }
 
-
     override fun onCreate() {
         super.onCreate()
-        try {
-            FirebaseApp.initializeApp(this)
-        } catch (e: Exception) {
-            // Offline-first
-        }
     }
 }

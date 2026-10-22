@@ -4,17 +4,14 @@ import android.util.Log
 import com.ghostpocket.app.data.local.*
 import com.ghostpocket.app.data.remote.D1SyncPullResponse
 import com.ghostpocket.app.model.*
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
 
 /**
  * CloudSyncEngine handles synchronization operations between local Room storage
- * and remote backends (Firebase Firestore and Cloudflare D1).
+ * and Cloudflare D1 edge database.
  *
  * Responsibilities:
  * - Aggregating pending local modifications for upload
  * - Marking entities as SYNCED or executing hard deletes for PENDING_DELETE records
- * - Pulling and merging delta changes from Firestore
  * - Reconciling changes pulled from Cloudflare D1
  */
 class CloudSyncEngine(
@@ -90,113 +87,6 @@ class CloudSyncEngine(
      */
     suspend fun markBudgetSynced(id: String) {
         budgetDao.updateSyncStatus(id, SyncStatus.SYNCED)
-    }
-
-    /**
-     * Pulls latest user collections from Cloud Firestore and resolves conflicts
-     * via last-write-wins (only when local state is not PENDING_UPLOAD / PENDING_DELETE).
-     */
-    suspend fun pullFromCloud(userId: String) {
-        if (userId.isBlank() || userId == "local_offline_user") return
-        val db = FirebaseFirestore.getInstance()
-
-        try {
-            val userDoc = db.collection("users").document(userId)
-
-            // 1. Transactions
-            val txSnap = userDoc.collection("transactions").get().await()
-            for (doc in txSnap.documents) {
-                val data = doc.data ?: continue
-                val local = transactionDao.getTransactionById(doc.id)
-                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
-                if (local == null || (local.syncStatus == SyncStatus.SYNCED && cloudUpdatedAt > local.updatedAt)) {
-                    val entity = TransactionEntity(
-                        id = doc.id,
-                        amountPaise = (data["amountPaise"] as? Long) ?: 0L,
-                        type = TransactionType.valueOf((data["type"] as? String) ?: TransactionType.EXPENSE.name),
-                        category = (data["category"] as? String) ?: "Other",
-                        timestamp = (data["timestamp"] as? Long) ?: System.currentTimeMillis(),
-                        note = data["note"] as? String,
-                        syncStatus = SyncStatus.SYNCED,
-                        userId = userId,
-                        updatedAt = cloudUpdatedAt
-                    )
-                    transactionDao.insertTransaction(entity)
-                }
-            }
-
-            // 2. Friends
-            val friendSnap = userDoc.collection("friends").get().await()
-            for (doc in friendSnap.documents) {
-                val data = doc.data ?: continue
-                val local = friendDao.getFriendById(doc.id)
-                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
-                if (local == null || (local.syncStatus == SyncStatus.SYNCED && cloudUpdatedAt > local.updatedAt)) {
-                    val entity = FriendEntity(
-                        id = doc.id,
-                        name = (data["name"] as? String) ?: "Friend",
-                        phone = data["phone"] as? String,
-                        syncStatus = SyncStatus.SYNCED,
-                        userId = userId,
-                        updatedAt = cloudUpdatedAt
-                    )
-                    friendDao.insertFriend(entity)
-                }
-            }
-
-            // 3. Friend Ledgers
-            val ledgerSnap = userDoc.collection("friend_ledgers").get().await()
-            for (doc in ledgerSnap.documents) {
-                val data = doc.data ?: continue
-                val cloudUpdatedAt = (data["updatedAt"] as? Long) ?: 0L
-                val entity = FriendLedgerEntity(
-                    id = doc.id,
-                    friendId = (data["friendId"] as? String) ?: "",
-                    amountPaise = (data["amountPaise"] as? Long) ?: 0L,
-                    direction = LedgerDirection.valueOf((data["direction"] as? String) ?: LedgerDirection.THEY_OWE_YOU.name),
-                    note = data["note"] as? String,
-                    timestamp = (data["timestamp"] as? Long) ?: System.currentTimeMillis(),
-                    isSettled = (data["isSettled"] as? Boolean) ?: false,
-                    syncStatus = SyncStatus.SYNCED,
-                    userId = userId,
-                    updatedAt = cloudUpdatedAt
-                )
-                friendLedgerDao.insertLedger(entity)
-            }
-
-            // 4. Categories
-            val catSnap = userDoc.collection("categories").get().await()
-            for (doc in catSnap.documents) {
-                val data = doc.data ?: continue
-                val entity = CategoryEntity(
-                    name = doc.id,
-                    iconKey = (data["iconKey"] as? String) ?: "ghost",
-                    budgetPaise = (data["budgetPaise"] as? Long) ?: 0L,
-                    syncStatus = SyncStatus.SYNCED,
-                    userId = userId,
-                    updatedAt = (data["updatedAt"] as? Long) ?: System.currentTimeMillis()
-                )
-                categoryDao.insertCategory(entity)
-            }
-
-            // 5. User Budget Settings
-            val budgetDoc = userDoc.collection("settings").document("budget").get().await()
-            if (budgetDoc.exists()) {
-                val data = budgetDoc.data
-                val budgetPaise = (data?.get("budgetPaise") as? Long) ?: 0L
-                budgetDao.setBudget(
-                    UserBudgetEntity(
-                        id = "current_budget",
-                        budgetPaise = budgetPaise,
-                        syncStatus = SyncStatus.SYNCED,
-                        userId = userId,
-                        updatedAt = (data?.get("updatedAt") as? Long) ?: System.currentTimeMillis()
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Log.e("GhostPocketSync", "Cloud pull failed: ${e.message}")
-        }
     }
 
     /**

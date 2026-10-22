@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
  * It manages:
  * - Local reactive flows for Transactions, Categories, and User Budgets
  * - Real-time friend debt balancing (who owes whom)
- * - Cloud syncing with Firebase Firestore and Cloudflare D1
+ * - Cloud syncing with Cloudflare D1
  * - Complex ledger operations such as bill splitting and debt repayment reconciliation
  */
 interface GhostPocketRepository {
@@ -166,9 +166,6 @@ interface GhostPocketRepository {
 
     /** Marks a budget as synced. */
     suspend fun markBudgetSynced(id: String)
-
-    /** Pulls delta updates from Cloud Firestore. */
-    suspend fun pullFromCloud(userId: String)
 
     /** Merges delta updates from Cloudflare D1. */
     suspend fun applyD1PullResults(pullRes: D1SyncPullResponse, userId: String)

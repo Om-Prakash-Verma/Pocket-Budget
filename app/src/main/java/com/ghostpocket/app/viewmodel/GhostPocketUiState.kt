@@ -19,8 +19,8 @@ import com.ghostpocket.app.model.*
  * @property isSyncing Whether background cloud sync is actively executing.
  * @property isInitialDataFetching Whether initial cloud data pull is taking place on authentication.
  * @property userMessage Transient snackbar/toast feedback message for user actions.
- * @property isAuthenticated Whether user is currently authenticated via Cloudflare D1 or Firebase.
- * @property authLoading Whether an auth request (sign in/sign up/Google) is processing.
+ * @property isAuthenticated Whether user is currently authenticated via Cloudflare D1.
+ * @property authLoading Whether an auth request (sign in/sign up) is processing.
  * @property authError Error message from an authentication failure, if any.
  */
 data class GhostPocketUiState(

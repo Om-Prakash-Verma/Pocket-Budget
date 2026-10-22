@@ -469,9 +469,6 @@ class GhostPocketRepositoryImpl(
     override suspend fun markBudgetSynced(id: String) =
         syncEngine.markBudgetSynced(id)
 
-    override suspend fun pullFromCloud(userId: String) =
-        syncEngine.pullFromCloud(userId)
-
     override suspend fun applyD1PullResults(pullRes: D1SyncPullResponse, userId: String) =
         syncEngine.applyD1PullResults(pullRes, userId)
 

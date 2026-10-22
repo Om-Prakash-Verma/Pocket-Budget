@@ -6,12 +6,6 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-
-// Optionally apply google services if google-services.json exists
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "com.ghostpocket.app"
     compileSdk = 35
@@ -33,9 +27,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            // No suffix so debug build matches com.ghostpocket.app in google-services.json
         }
     }
 
@@ -87,13 +78,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
-
-    // Firebase (BOM)
-
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.play.services.auth)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

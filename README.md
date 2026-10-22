@@ -121,7 +121,6 @@
 | **Backend API** | Cloudflare Workers + Hono v4 (TypeScript) |
 | **Edge Database** | Cloudflare D1 (Serverless SQLite) |
 | **Live Backend URL** | `https://ghostpocket-backend.omprakashverma-in-fda.workers.dev` |
-| **Alternative Backend** | Cloud Firestore + Firebase Auth |
 | **Background Sync** | AndroidX WorkManager (Debounced, network-constrained) |
 | **Build System** | Gradle Kotlin DSL (`build.gradle.kts`) |
 | **Target JDK** | JDK 21 (Temurin / OpenJDK 21) |

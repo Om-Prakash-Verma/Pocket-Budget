@@ -59,6 +59,9 @@ class D1ApiClient(
         get() = prefs.getLong(KEY_LAST_SYNC_TS, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_SYNC_TS, value).apply()
 
+    val isLoggedIn: Boolean
+        get() = currentUserId.isNotBlank() && currentUserId != "guest_user" && authToken != null
+
     fun clearAuth() {
         prefs.edit()
             .remove(KEY_AUTH_TOKEN)
@@ -76,11 +79,6 @@ class D1ApiClient(
     suspend fun login(email: String, pass: String): AuthResponse = withContext(Dispatchers.IO) {
         val payload = json.encodeToString(AuthRequest(email = email, password = pass))
         executePost("/api/auth/login", payload)
-    }
-
-    suspend fun googleSignIn(idToken: String): AuthResponse = withContext(Dispatchers.IO) {
-        val payload = json.encodeToString(AuthRequest(idToken = idToken))
-        executePost("/api/auth/google", payload)
     }
 
     /**
