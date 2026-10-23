@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-10-23
+
+### Added
+- **Account Deletion & Data Purge**: Added a destructive "Delete Account & Purge Data ⚠️" feature in the Settings tab. Securely purges all user records from both the device's local Room SQLite database and the Cloudflare D1 edge database (`DELETE /api/auth/account`), clears session credentials, and returns cleanly to the Welcome screen.
+- **Direct GitHub Releases Link**: Added a quick "Releases 🌐" navigation button in the Settings tab to let users easily inspect the official GitHub releases and updates.
+- **Production Version Management System**: Standardized Semantic Versioning (`MAJOR.MINOR.PATCH`) with release automation script (`scripts/release.ps1`), GitHub Actions CI release workflow (`.github/workflows/release.yml`), and standardized APK generation/naming (`GhostPocket-v<version>.apk`).
+- **Update System Unit Tests**: Added unit test suite (`UpdateSystemTest.kt`) verifying SemVer increment checks and version regex patterns.
+
+### Changed
+- Centralized in-app version configuration across Gradle build scripts and UI metadata.
+
+---
+
 ## [2.0.0] - 2026-10-23
 
 ### Added
@@ -18,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WhatsApp-Style Silent Cloud Backup**: 100% offline-first operation. WorkManager batches all records and syncs to Cloudflare D1 edge database once every 24 hours under idle/battery-safe conditions.
 - **Interactive App Tour**: 5-step modal guide explaining cashflow, in-line calculations, month-scoped budgets, friend debt mechanics, and offline-first privacy.
 - **Direct In-App APK Updater**: Seamless background check against GitHub Releases API with progress tracking, SHA-256 verification, and PackageInstaller integration.
-- **Account Deletion & Data Purge**: Full GDPR/Play Store compliant account deletion from both device Room SQLite and Cloudflare D1 edge storage.
 
 ### Changed
 - Standardized release versioning to Semantic Versioning (`MAJOR.MINOR.PATCH`) with centralized version management in `app/build.gradle.kts`.

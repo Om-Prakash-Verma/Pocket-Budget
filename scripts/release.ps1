@@ -2,6 +2,9 @@ param (
     [Parameter(Mandatory = $true, Position = 0)]
     [string]$TargetVersion,
 
+    [Parameter(Mandatory = $false)]
+    [string]$Title = "",
+
     [switch]$Publish
 )
 
@@ -85,8 +88,8 @@ if ($remoteTagCheck) {
 }
 
 # 5. Check if GitHub release already exists
-$existingRelease = gh release view $targetTag 2>$null
-if ($LASTEXITCODE -eq 0 -and $existingRelease) {
+$existingRelease = gh release list | Select-String -Pattern "\b$targetTag\b"
+if ($existingRelease) {
     Write-Error "GitHub release '$targetTag' already exists! Aborting."
     exit 1
 }
@@ -180,15 +183,16 @@ Write-Host "Release Notes prepared from CHANGELOG.md" -ForegroundColor Cyan
 if ($Publish) {
     Write-Host "Publishing release $targetTag to GitHub..." -ForegroundColor Yellow
     
-    git add app/build.gradle.kts app/src CHANGELOG.md
+    git add -A
     git commit -m "feat: release $targetTag (versionCode $nextVersionCode)"
     git push origin main
     
     git tag -a $targetTag -m "GhostPocket $targetTag"
     git push origin $targetTag
     
+    $releaseTitle = if ($Title) { $Title } else { "GhostPocket $targetTag" }
     gh release create $targetTag $apkExpectedPath `
-        --title "GhostPocket $targetTag" `
+        --title $releaseTitle `
         --notes-file $tempNotesFile
         
     Remove-Item $tempNotesFile -ErrorAction SilentlyContinue
