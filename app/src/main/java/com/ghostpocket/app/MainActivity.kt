@@ -363,6 +363,10 @@ fun MainContent(
                             onSignOut = {
                                 viewModel.signOut()
                                 isSettingsOpen = false
+                            },
+                            onDeleteAccount = {
+                                viewModel.deleteAccount()
+                                isSettingsOpen = false
                             }
                         )
                     }

@@ -48,6 +48,7 @@ import com.ghostpocket.app.util.AppThemeMode
  * @param onThemeChange Updates user theme preference.
  * @param onReplayTour Triggers interactive app tour.
  * @param onSignOut Clears user session.
+ * @param onDeleteAccount Permanently purges user account and all data.
  * @param modifier Composable modifier.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +69,7 @@ fun SettingsScreen(
     onThemeChange: (AppThemeMode) -> Unit = {},
     onReplayTour: () -> Unit = {},
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // ------------------------------------------------------------------------
@@ -76,6 +78,7 @@ fun SettingsScreen(
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<CategoryEntity?>(null) }
     var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
     // ------------------------------------------------------------------------
     // 2. Scaffold & List Layout
@@ -169,6 +172,13 @@ fun SettingsScreen(
                         onClick = onSignOut,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    ClayButton(
+                        text = "Delete Account & Purge Data ⚠️",
+                        isSecondary = true,
+                        onClick = { showDeleteAccountDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -221,6 +231,32 @@ fun SettingsScreen(
             category = deletingCat,
             onDismiss = { categoryToDelete = null },
             onConfirm = { onDeleteCategory(deletingCat) }
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            title = { Text("Delete Account & Data? ⚠️") },
+            text = {
+                Text("This will permanently exorcise your account and delete ALL your transactions, categories, budgets, and friend ledgers from both this device and the cloud. This action cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete Everything", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

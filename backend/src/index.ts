@@ -72,6 +72,32 @@ app.post('/api/auth/login', async (c) => {
 });
 
 // -------------------------------------------------------------
+// Account Deletion: Purge user and all synced records
+// -------------------------------------------------------------
+app.delete('/api/auth/account', async (c) => {
+  const userId = extractUserId(c);
+  if (!userId || userId === 'guest_user') {
+    return c.json({ error: 'Unauthorized or guest user' }, 401);
+  }
+
+  try {
+    const statements = [
+      c.env.DB.prepare('DELETE FROM transactions WHERE user_id = ?').bind(userId),
+      c.env.DB.prepare('DELETE FROM friends WHERE user_id = ?').bind(userId),
+      c.env.DB.prepare('DELETE FROM friend_ledgers WHERE user_id = ?').bind(userId),
+      c.env.DB.prepare('DELETE FROM categories WHERE user_id = ?').bind(userId),
+      c.env.DB.prepare('DELETE FROM user_settings WHERE user_id = ?').bind(userId),
+      c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId),
+    ];
+
+    await c.env.DB.batch(statements);
+    return c.json({ success: true, message: 'All user data permanently purged 💨' });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// -------------------------------------------------------------
 // BEST OPTIMIZATION: UNIFIED 2-WAY SYNC IN A SINGLE REQUEST
 // (Combines Push + Pull into 1 call -> Cuts Worker usage by 50%)
 // -------------------------------------------------------------

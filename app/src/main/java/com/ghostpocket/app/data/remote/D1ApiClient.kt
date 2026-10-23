@@ -81,6 +81,23 @@ class D1ApiClient(
         executePost("/api/auth/login", payload)
     }
 
+    suspend fun deleteAccount(): Boolean = withContext(Dispatchers.IO) {
+        val token = authToken ?: currentUserId
+        if (token.isBlank() || token == "guest_user") return@withContext true
+        try {
+            val req = Request.Builder()
+                .url("$baseUrl/api/auth/account")
+                .header("Authorization", "Bearer $token")
+                .delete()
+                .build()
+            client.newCall(req).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /**
      * UNIFIED SYNC: Pushes pending local changes and pulls latest remote updates in 1 single HTTP request.
      * Cuts Cloudflare Worker request count by 50%.

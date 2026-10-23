@@ -305,6 +305,21 @@ class GhostPocketViewModel(
         }
     }
 
+    fun deleteAccount() {
+        viewModelScope.launch {
+            _authLoading.value = true
+            try {
+                d1ApiClient?.deleteAccount()
+                d1ApiClient?.clearAuth()
+                repository.clearLocalCache()
+                _isAuthenticated.value = false
+                _userMessage.value = "Account and all data exorcised forever! 💨👻"
+            } finally {
+                _authLoading.value = false
+            }
+        }
+    }
+
     fun clearMessage() {
         _userMessage.value = null
     }

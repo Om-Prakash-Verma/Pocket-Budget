@@ -80,4 +80,38 @@ class UpdateSystemTest {
         assertTrue(isMandatory("mandatory: true\nDatabase schema migration required"))
         assertFalse(isMandatory("Regular update with minor UI polish"))
     }
+
+    @Test
+    fun testSemanticVersioningIncrementValidation() {
+        fun isValidNextVersion(current: String, target: String): Boolean {
+            val semver = Regex("""^(\d+)\.(\d+)\.(\d+)$""")
+            val cMatch = semver.matchEntire(current) ?: return false
+            val tMatch = semver.matchEntire(target) ?: return false
+
+            val (cMaj, cMin, cPat) = cMatch.destructured.let { Triple(it.component1().toInt(), it.component2().toInt(), it.component3().toInt()) }
+            val (tMaj, tMin, tPat) = tMatch.destructured.let { Triple(it.component1().toInt(), it.component2().toInt(), it.component3().toInt()) }
+
+            // Valid increments:
+            // 1. Patch bump: same major & minor, patch = current + 1
+            val isPatch = (tMaj == cMaj && tMin == cMin && tPat == cPat + 1)
+            // 2. Minor bump: same major, minor = current + 1, patch reset to 0
+            val isMinor = (tMaj == cMaj && tMin == cMin + 1 && tPat == 0)
+            // 3. Major bump: major = current + 1, minor reset to 0, patch reset to 0
+            val isMajor = (tMaj == cMaj + 1 && tMin == 0 && tPat == 0)
+
+            return isPatch || isMinor || isMajor
+        }
+
+        // Current release is 2.0.0
+        assertTrue("Patch bump 2.0.0 -> 2.0.1 must be valid", isValidNextVersion("2.0.0", "2.0.1"))
+        assertTrue("Minor bump 2.0.0 -> 2.1.0 must be valid", isValidNextVersion("2.0.0", "2.1.0"))
+        assertTrue("Major bump 2.0.0 -> 3.0.0 must be valid", isValidNextVersion("2.0.0", "3.0.0"))
+
+        // Invalid progressions
+        assertFalse("Downgrade 2.0.0 -> 1.9.0 is invalid", isValidNextVersion("2.0.0", "1.9.0"))
+        assertFalse("Same version 2.0.0 -> 2.0.0 is invalid", isValidNextVersion("2.0.0", "2.0.0"))
+        assertFalse("Minor bump without resetting patch 2.0.0 -> 2.1.1 is invalid", isValidNextVersion("2.0.0", "2.1.1"))
+        assertFalse("Major bump without resetting minor/patch 2.0.0 -> 3.1.0 is invalid", isValidNextVersion("2.0.0", "3.1.0"))
+        assertFalse("Non-semver strings are invalid", isValidNextVersion("2.0.0", "2.0.0-beta"))
+    }
 }

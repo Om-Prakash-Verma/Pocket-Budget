@@ -214,12 +214,36 @@ fun AppUpdateSettingsCard(
         )
         Spacer(modifier = Modifier.height(14.dp))
 
-        ClayButton(
-            text = if (isCheckingForUpdate) "Summoning latest release..." else "Check for Updates 🔄",
-            icon = Icons.Default.SystemUpdate,
-            onClick = onCheckForUpdates,
-            enabled = !isCheckingForUpdate,
-            modifier = Modifier.fillMaxWidth()
-        )
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ClayButton(
+                text = if (isCheckingForUpdate) "Checking..." else "Check Updates 🔄",
+                icon = Icons.Default.SystemUpdate,
+                onClick = onCheckForUpdates,
+                enabled = !isCheckingForUpdate,
+                modifier = Modifier.weight(1f)
+            )
+            ClayButton(
+                text = "Releases 🌐",
+                isSecondary = true,
+                onClick = {
+                    val intent = android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/Om-Prakash-Verma/Pocket-Budget/releases")
+                    ).apply {
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                },
+                modifier = Modifier.weight(0.9f)
+            )
+        }
     }
 }
